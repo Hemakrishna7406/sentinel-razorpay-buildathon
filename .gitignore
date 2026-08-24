@@ -1,0 +1,54 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Build / runtime
+dist/
+build/
+coverage/
+*.log
+
+# Docker / local runtime
+*.pid
+*.sqlite
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local generated state
+tmp/
+logs/
+
+# Large/generated datasets
+data/generated/
+*.parquet
+*.csv
+
+# Benchmark artifacts that are machine-local
+*.jsonl

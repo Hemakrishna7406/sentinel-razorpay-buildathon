@@ -1,0 +1,21 @@
+{
+  "dataset_version": "sentinel-v2",
+  "seed": 42,
+  "generator_commit": "unknown",
+  "row_count": 172785,
+  "sha256": "b11ef456bc527043e147bafa351554e9684bd01112801647ba6909684b3e4122",
+  "date_range": "Day 1 to 30",
+  "train_days": [
+    1,
+    20
+  ],
+  "validation_days": [
+    21,
+    25
+  ],
+  "test_days": [
+    26,
+    30
+  ],
+  "description": "Behavioral-Evasion Challenge Dataset. Normal transactions with anomalous behavior."
+}

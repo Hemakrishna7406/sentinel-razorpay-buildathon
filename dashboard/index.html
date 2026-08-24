@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel — Dashboard</title>
+    <meta name="description" content="Sentinel operational dashboard: real-time agent monitoring, intent evaluation, behavioral drift detection, and policy management.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0A0E1A;
+            --panel: #121A2E;
+            --panel-raised: #1A2340;
+            --signal: #4C8DFF;
+            --signal-dim: rgba(76, 141, 255, 0.12);
+            --drift: #F5A623;
+            --drift-dim: rgba(245, 166, 35, 0.12);
+            --contain: #E5484D;
+            --contain-dim: rgba(229, 72, 77, 0.12);
+            --green: #2ECC71;
+            --green-dim: rgba(46, 204, 113, 0.12);
+            --text: #E8ECF7;
+            --muted: #6B7592;
+            --hairline: rgba(107, 117, 146, 0.15);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--ink);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── LAYOUT ─── */
+        .app { display: flex; min-height: 100vh; }
+
+        /* ─── SIDEBAR ─── */
+        .sidebar {
+            width: 220px;
+            background: var(--panel);
+            border-right: 1px solid var(--hairline);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 50;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 20px;
+            margin-bottom: 32px;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .sidebar-logo-mark {
+            width: 28px;
+            height: 28px;
+            border: 2px solid var(--signal);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--signal);
+        }
+
+        .sidebar-logo-text {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .sidebar-nav { flex: 1; }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--muted);
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-family: var(--font-body);
+            transition: all 0.15s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+
+        .sidebar-item.active {
+            color: var(--text);
+            background: rgba(76, 141, 255, 0.08);
+            border-left-color: var(--signal);
+        }
+
+        .sidebar-item-icon {
+            width: 18px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--hairline);
+        }
+
+        .sidebar-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--green);
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ─── MAIN CONTENT ─── */
+        .main {
+            flex: 1;
+            margin-left: 220px;
+            padding: 24px 32px;
+            max-width: 1280px;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            margin-bottom: 4px;
+        }
+
+        .page-sub {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        /* ─── SCREEN PANELS ─── */
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.25s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ─── CARDS ─── */
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--hairline);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .card-body { padding: 20px; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+        /* ─── STAT TILES ─── */
+        .stat-tile {
+            background: var(--panel);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .c-signal { color: var(--signal); }
+        .c-drift { color: var(--drift); }
+        .c-contain { color: var(--contain); }
+        .c-green { color: var(--green); }
+
+        /* ─── BADGES ─── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .badge-safe { background: var(--signal-dim); color: var(--signal); border: 1px solid rgba(76,141,255,0.2); }
+        .badge-allow { background: var(--green-dim); color: var(--green); border: 1px solid rgba(46,204,113,0.2); }
+        .badge-suspicious { background: var(--drift-dim); color: var(--drift); border: 1px solid rgba(245,166,35,0.2); }
+        .badge-escalate { background: var(--contain-dim); color: var(--contain); border: 1px solid rgba(229,72,77,0.2); }
+
+        /* ─── TABLE ─── */
+        .table-wrap { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+        th {
+            padding: 10px 14px;
+            text-align: left;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--hairline);
+            background: var(--panel-raised);
+        }
+
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--hairline);
+            font-variant-numeric: tabular-nums;
+        }
+
+        tr:hover td { background: rgba(255,255,255,0.015); }
+
+        .mono { font-family: var(--font-mono); }
+
+        /* ─── FORMS ─── */
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 9px 12px;
+            background: var(--ink);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 13px;
+            transition: border-color 0.15s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--signal);
+        }
+
+        textarea {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            resize: vertical;
+            min-height: 72px;
+        }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            padding: 9px 18px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary { background: var(--signal); color: var(--ink); }
+        .btn-primary:hover { background: #6BA4FF; }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--hairline);
+        }
+        .btn-ghost:hover { border-color: var(--muted); }
+
+        .btn-danger {
+            background: var(--contain-dim);
+            color: var(--contain);
+            border: 1px solid rgba(229,72,77,0.25);
+        }
+        .btn-danger:hover { background: rgba(229,72,77,0.2); }
+
+        .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ─── FEATURE BARS ─── */
+        .feature-bar-row { margin-bottom: 10px; }
+
+        .feature-bar-head {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .feature-bar-name {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .feature-bar-val {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .feature-bar-track {
+            height: 5px;
+            background: var(--panel-raised);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .feature-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .fill-risk { background: var(--contain); }
+        .fill-safe { background: var(--signal); }
+
+        /* ─── RULE CHIPS ─── */
+        .rule-chip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--ink);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            margin-bottom: 6px;
+        }
+
+        .rule-text {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--drift);
+        }
+
+        .rule-id {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--muted);
+            margin-right: 12px;
+        }
+
+        /* ─── LOADING ─── */
+        .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid var(--hairline);
+            border-top-color: var(--signal);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state {
+            padding: 32px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        /* ─── JSON BLOCK ─── */
+        .json-block {
+            background: var(--ink);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            line-height: 1.6;
+            overflow: auto;
+            max-height: 360px;
+            color: var(--signal);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* ─── FOCUS STATES ─── */
+        a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: 2px;
+        }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 16px; }
+            .grid-2, .grid-3, .grid-5 { grid-template-columns: 1fr; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .screen.active { animation: none; }
+            .spinner { animation: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- ─── SIDEBAR ─── -->
+    <aside class="sidebar">
+        <a href="/" class="sidebar-logo">
+            <div class="sidebar-logo-mark">S</div>
+            <span class="sidebar-logo-text">Sentinel</span>
+        </a>
+        <nav class="sidebar-nav">
+            <button class="sidebar-item active" data-screen="overview" id="nav-overview">
+                <span class="sidebar-item-icon">◉</span> Agent Overview
+            </button>
+            <button class="sidebar-item" data-screen="evaluate" id="nav-evaluate">
+                <span class="sidebar-item-icon">⚡</span> Evaluate
+            </button>
+            <button class="sidebar-item" data-screen="simulate" id="nav-simulate">
+                <span class="sidebar-item-icon">▶</span> Simulate
+            </button>
+            <button class="sidebar-item" data-screen="policy" id="nav-policy">
+                <span class="sidebar-item-icon">⚙</span> Policy Rules
+            </button>
+            <button class="sidebar-item" data-screen="audit" id="nav-audit">
+                <span class="sidebar-item-icon">☰</span> Audit Log
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-status">
+                <div class="status-dot"></div> Engine Online
+            </div>
+        </div>
+    </aside>
+
+    <!-- ─── MAIN ─── -->
+    <div class="main">
+
+        <!-- ══════════ OVERVIEW ══════════ -->
+        <div class="screen active" id="screen-overview">
+            <div class="page-header">
+                <div class="page-title">Agent Overview</div>
+                <div class="page-sub">Baseline vs. current behavioral profiles for monitored agents.</div>
+            </div>
+
+            <div class="grid-5" style="margin-bottom:24px;">
+                <div class="stat-tile">
+                    <div class="stat-label">Agents</div>
+                    <div class="stat-value c-signal">6</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Safe</div>
+                    <div class="stat-value c-green">4</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Suspicious</div>
+                    <div class="stat-value c-drift">1</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">High Risk</div>
+                    <div class="stat-value c-contain">1</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Intents / hr</div>
+                    <div class="stat-value">42</div>
+                </div>
+            </div>
+
+            <div class="grid-3" id="agent-cards">
+                <!-- Agent cards rendered by JS -->
+            </div>
+        </div>
+
+        <!-- ══════════ EVALUATE ══════════ -->
+        <div class="screen" id="screen-evaluate">
+            <div class="page-header">
+                <div class="page-title">Intent Evaluation</div>
+                <div class="page-sub">Submit an intent to the Sentinel pipeline and view the decision with feature explanations.</div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Request</span></div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Intent ID</label>
+                                <input type="text" id="eval-intent-id" value="int_demo_001" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Agent ID</label>
+                                <input type="text" id="eval-agent-id" value="agent_demo" />
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Action</label>
+                                <select id="eval-action">
+                                    <option value="payout">Payout</option>
+                                    <option value="refund">Refund</option>
+                                    <option value="checkout">Checkout</option>
+                                    <option value="retry">Retry</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount (paise)</label>
+                                <input type="number" id="eval-amount" value="50000" />
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Currency</label>
+                                <input type="text" id="eval-currency" value="INR" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Recipient</label>
+                                <input type="text" id="eval-recipient" value="bank_demo_001" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mode</label>
+                            <select id="eval-mode">
+                                <option value="govern">Govern (Active)</option>
+                                <option value="observe">Observe (Shadow)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="btn-evaluate" onclick="runEvaluation()">⚡ Evaluate Intent</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="card" id="eval-result" style="display:none;">
+                        <div class="card-header">
+                            <span class="card-title">Decision</span>
+                            <span id="eval-badge"></span>
+                        </div>
+                        <div class="card-body">
+                            <div class="grid-2" style="margin-bottom:16px;">
+                                <div class="stat-tile">
+                                    <div class="stat-label">Risk Score</div>
+                                    <div class="stat-value" id="eval-risk-score">—</div>
+                                </div>
+                                <div class="stat-tile">
+                                    <div class="stat-label">TX ID</div>
+                                    <div class="stat-value" id="eval-tx-id" style="font-size:12px;">—</div>
+                                </div>
+                            </div>
+                            <div style="font-size:13px;color:var(--muted);margin-bottom:12px;" id="eval-reason"></div>
+                        </div>
+                    </div>
+                    <div class="card" id="eval-explanation" style="display:none;">
+                        <div class="card-header"><span class="card-title">Feature Contributions</span></div>
+                        <div class="card-body" id="shap-bars"></div>
+                    </div>
+                    <div class="card" id="eval-json-card" style="display:none;">
+                        <div class="card-header"><span class="card-title">Raw Response</span></div>
+                        <div class="card-body"><div class="json-block" id="eval-json"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ SIMULATE ══════════ -->
+        <div class="screen" id="screen-simulate">
+            <div class="page-header">
+                <div class="page-title">Batch Simulation</div>
+                <div class="page-sub">Run synthetic intents through the pipeline and view aggregate decisions.</div>
+            </div>
+            <div class="card">
+                <div class="card-body" style="display:flex;gap:16px;align-items:flex-end;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Samples</label>
+                        <input type="number" id="sim-samples" value="200" style="width:120px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Seed</label>
+                        <input type="number" id="sim-seed" value="42" style="width:100px;" />
+                    </div>
+                    <button class="btn btn-primary" id="btn-simulate" onclick="runSimulation()">▶ Run Simulation</button>
+                </div>
+            </div>
+            <div id="sim-loading" class="empty-state" style="display:none;"><div class="spinner"></div> Running simulation…</div>
+            <div id="sim-results" style="display:none;">
+                <div class="grid-5" style="margin-bottom:16px;">
+                    <div class="stat-tile"><div class="stat-label">Total</div><div class="stat-value c-signal" id="sim-total">—</div></div>
+                    <div class="stat-tile"><div class="stat-label">Allowed</div><div class="stat-value c-green" id="sim-allowed">—</div></div>
+                    <div class="stat-tile"><div class="stat-label">Escalated</div><div class="stat-value c-contain" id="sim-escalated">—</div></div>
+                    <div class="stat-tile"><div class="stat-label">Avg Risk</div><div class="stat-value c-drift" id="sim-avg-risk">—</div></div>
+                    <div class="stat-tile"><div class="stat-label">Esc. Rate</div><div class="stat-value" id="sim-esc-rate">—</div></div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Decision Log</span></div>
+                    <div class="table-wrap">
+                        <table><thead><tr>
+                            <th>Intent</th><th>Scenario</th><th>Action</th><th>Amount</th><th>Risk</th><th>Decision</th><th>Truth</th>
+                        </tr></thead><tbody id="sim-table-body"></tbody></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ POLICY ══════════ -->
+        <div class="screen" id="screen-policy">
+            <div class="page-header">
+                <div class="page-title">Policy Rules</div>
+                <div class="page-sub">Add natural language rules that are compiled into executable predicates and evaluated before ML.</div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Add Rule</span></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Rule (Natural Language)</label>
+                            <textarea id="policy-text" placeholder="ESCALATE IF amount > 5000000&#10;ESCALATE IF action_type = refund AND amount > 1000000"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rule ID (optional)</label>
+                            <input type="text" id="policy-rule-id" placeholder="e.g. high_value_block" />
+                        </div>
+                        <button class="btn btn-primary" onclick="addPolicyRule()">+ Add Rule</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Active Rules</span>
+                        <button class="btn btn-sm btn-ghost" onclick="loadPolicyRules()">↻ Refresh</button>
+                    </div>
+                    <div class="card-body" id="policy-rules-list">
+                        <div class="empty-state">No rules defined yet.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ AUDIT ══════════ -->
+        <div class="screen" id="screen-audit">
+            <div class="page-header">
+                <div class="page-title">Audit Log</div>
+                <div class="page-sub">Immutable ledger of all evaluated intents, decisions, and executions.</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Recent Evaluations</span>
+                    <button class="btn btn-sm btn-ghost" onclick="loadAuditLog()">↻ Refresh</button>
+                </div>
+                <div class="table-wrap">
+                    <table><thead><tr>
+                        <th>Intent ID</th><th>Agent</th><th>Action</th><th>Amount</th><th>Risk</th><th>Decision</th><th>TX ID</th><th>Time</th>
+                    </tr></thead><tbody id="audit-table-body"><tr><td colspan="8" class="empty-state">No audit records yet. Evaluate an intent to create one.</td></tr></tbody></table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let evalCounter = 0;
+
+// ─── Navigation ───
+document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        item.classList.add('active');
+        document.getElementById('screen-' + item.dataset.screen).classList.add('active');
+        if (item.dataset.screen === 'policy') loadPolicyRules();
+        if (item.dataset.screen === 'audit') loadAuditLog();
+    });
+});
+
+// ─── Agent Overview (Mock Data) ───
+const MOCK_AGENTS = [
+    { id: 'agent_0x7a', status: 'safe', age: 47, avg: 3240, velocity: '2/hr', drift: 0.08 },
+    { id: 'agent_0x3f', status: 'safe', age: 112, avg: 1890, velocity: '4/hr', drift: 0.12 },
+    { id: 'agent_0x91', status: 'suspicious', age: 33, avg: 8700, velocity: '14/hr', drift: 0.74 },
+    { id: 'agent_0xb2', status: 'safe', age: 89, avg: 2100, velocity: '1/hr', drift: 0.05 },
+    { id: 'agent_0xc4', status: 'high', age: 5, avg: 45000, velocity: '22/hr', drift: 0.93 },
+    { id: 'agent_0xd8', status: 'safe', age: 65, avg: 4500, velocity: '3/hr', drift: 0.11 },
+];
+
+function renderAgentCards() {
+    const container = document.getElementById('agent-cards');
+    container.innerHTML = MOCK_AGENTS.map(a => {
+        const badgeClass = a.status === 'safe' ? 'badge-safe' : a.status === 'suspicious' ? 'badge-suspicious' : 'badge-escalate';
+        const badgeLabel = a.status === 'safe' ? '● Safe' : a.status === 'suspicious' ? '● Suspicious' : '● High Risk';
+        const driftColor = a.drift > 0.7 ? 'var(--contain)' : a.drift > 0.3 ? 'var(--drift)' : 'var(--signal)';
+        const driftPct = Math.min(a.drift * 100, 100);
+        return `<div class="card">
+            <div class="card-header">
+                <span class="card-title">${a.id}</span>
+                <span class="badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            <div class="card-body">
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hairline);">
+                    <span style="font-size:12px;color:var(--muted);">Age</span>
+                    <span class="mono" style="font-size:12px;">${a.age}d</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hairline);">
+                    <span style="font-size:12px;color:var(--muted);">Avg Amount</span>
+                    <span class="mono" style="font-size:12px;">₹${(a.avg/100).toFixed(0)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hairline);">
+                    <span style="font-size:12px;color:var(--muted);">Velocity</span>
+                    <span class="mono" style="font-size:12px;">${a.velocity}</span>
+                </div>
+                <div style="margin-top:12px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                        <span style="font-size:11px;color:var(--muted);">Drift Score</span>
+                        <span class="mono" style="font-size:11px;color:${driftColor};">${a.drift.toFixed(2)}</span>
+                    </div>
+                    <div style="height:4px;background:var(--panel-raised);border-radius:2px;overflow:hidden;">
+                        <div style="height:100%;width:${driftPct}%;background:${driftColor};border-radius:2px;transition:width 0.6s ease;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+renderAgentCards();
+
+// ─── Evaluate ───
+async function runEvaluation() {
+    evalCounter++;
+    const btn = document.getElementById('btn-evaluate');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Evaluating…';
+
+    const body = {
+        intent_id: document.getElementById('eval-intent-id').value || `int_${Date.now()}`,
+        agent_id: document.getElementById('eval-agent-id').value,
+        action_type: document.getElementById('eval-action').value,
+        amount: parseInt(document.getElementById('eval-amount').value),
+        currency: document.getElementById('eval-currency').value,
+        recipient: document.getElementById('eval-recipient').value,
+        context: { has_sufficient_history: 1 }
+    };
+    const mode = document.getElementById('eval-mode').value;
+
+    try {
+        const res = await fetch(`${API}/evaluate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `idem_dash_${evalCounter}_${Date.now()}`, 'X-Sentinel-Mode': mode },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        showEvalResult(data);
+    } catch (err) { alert('Evaluation failed: ' + err.message); }
+    finally { btn.disabled = false; btn.innerHTML = '⚡ Evaluate Intent'; }
+}
+
+function showEvalResult(data) {
+    document.getElementById('eval-result').style.display = 'block';
+    document.getElementById('eval-json-card').style.display = 'block';
+
+    const isAllow = data.decision === 'ALLOW';
+    document.getElementById('eval-badge').innerHTML = isAllow
+        ? '<span class="badge badge-allow">✓ ALLOW</span>'
+        : '<span class="badge badge-escalate">✕ ESCALATE</span>';
+
+    const riskEl = document.getElementById('eval-risk-score');
+    riskEl.textContent = data.model_risk_score !== null ? data.model_risk_score.toFixed(4) : '—';
+    riskEl.className = 'stat-value ' + (data.model_risk_score > 0.5 ? 'c-contain' : 'c-green');
+
+    document.getElementById('eval-tx-id').textContent = data.executed_tx_id || '—';
+    document.getElementById('eval-reason').textContent = data.reason;
+    document.getElementById('eval-json').textContent = JSON.stringify(data, null, 2);
+
+    const shapContainer = document.getElementById('shap-bars');
+    const explCard = document.getElementById('eval-explanation');
+    if (data.explanation && data.explanation.length > 0) {
+        explCard.style.display = 'block';
+        const maxAbs = Math.max(...data.explanation.map(e => Math.abs(e.shap_value)), 0.01);
+        shapContainer.innerHTML = data.explanation.map(e => {
+            const pct = Math.min(Math.abs(e.shap_value) / maxAbs * 100, 100);
+            const cls = e.direction === 'increases_risk' ? 'fill-risk' : 'fill-safe';
+            const valStr = e.value !== null ? e.value.toFixed(2) : 'N/A';
+            return `<div class="feature-bar-row">
+                <div class="feature-bar-head">
+                    <span class="feature-bar-name">${e.feature}</span>
+                    <span class="feature-bar-val">${valStr} → ${e.shap_value.toFixed(4)}</span>
+                </div>
+                <div class="feature-bar-track"><div class="feature-bar-fill ${cls}" style="width:${pct}%"></div></div>
+            </div>`;
+        }).join('');
+    } else { explCard.style.display = 'none'; }
+}
+
+// ─── Simulate ───
+async function runSimulation() {
+    const btn = document.getElementById('btn-simulate');
+    btn.disabled = true;
+    document.getElementById('sim-loading').style.display = 'block';
+    document.getElementById('sim-results').style.display = 'none';
+
+    try {
+        const res = await fetch(`${API}/simulate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                num_samples: parseInt(document.getElementById('sim-samples').value),
+                seed: parseInt(document.getElementById('sim-seed').value),
+                mode: 'govern'
+            })
+        });
+        const data = await res.json();
+        showSimResults(data);
+    } catch (err) { alert('Simulation failed: ' + err.message); }
+    finally { btn.disabled = false; document.getElementById('sim-loading').style.display = 'none'; }
+}
+
+function showSimResults(data) {
+    document.getElementById('sim-results').style.display = 'block';
+    document.getElementById('sim-total').textContent = data.total;
+    document.getElementById('sim-allowed').textContent = data.allowed;
+    document.getElementById('sim-escalated').textContent = data.escalated;
+    document.getElementById('sim-avg-risk').textContent = data.avg_risk_score.toFixed(4);
+    document.getElementById('sim-esc-rate').textContent = (data.escalation_rate * 100).toFixed(1) + '%';
+
+    document.getElementById('sim-table-body').innerHTML = data.decisions.slice(0, 100).map(d => {
+        const badge = d.decision === 'ALLOW' ? '<span class="badge badge-allow">allow</span>' : '<span class="badge badge-escalate">escalate</span>';
+        const truth = d.loss_label === 1 ? '<span style="color:var(--contain);">✕ Risky</span>' : '<span style="color:var(--green);">✓ Benign</span>';
+        return `<tr>
+            <td class="mono" style="font-size:11px;">${d.intent_id}</td>
+            <td style="font-size:12px;">${d.scenario}</td>
+            <td class="mono" style="font-size:12px;">${d.action_type}</td>
+            <td class="mono">₹${(d.amount / 100).toFixed(0)}</td>
+            <td class="mono">${d.model_risk.toFixed(4)}</td>
+            <td>${badge}</td>
+            <td>${truth}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ─── Policy Rules ───
+async function loadPolicyRules() {
+    const container = document.getElementById('policy-rules-list');
+    container.innerHTML = '<div class="empty-state"><div class="spinner"></div> Loading…</div>';
+    try {
+        const res = await fetch(`${API}/policy/rules`);
+        const rules = await res.json();
+        if (rules.length === 0) { container.innerHTML = '<div class="empty-state">No rules defined. Add one above.</div>'; return; }
+        container.innerHTML = rules.map(r => `<div class="rule-chip">
+            <div><span class="rule-id">${r.rule_id}</span><span class="rule-text">${r.text}</span></div>
+            <button class="btn btn-sm btn-danger" onclick="deletePolicyRule('${r.rule_id}')">✕</button>
+        </div>`).join('');
+    } catch { container.innerHTML = '<div class="empty-state" style="color:var(--contain);">Failed to load rules.</div>'; }
+}
+
+async function addPolicyRule() {
+    const text = document.getElementById('policy-text').value.trim();
+    if (!text) return;
+    const ruleId = document.getElementById('policy-rule-id').value.trim();
+    try {
+        const res = await fetch(`${API}/policy/rules`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, rule_id: ruleId || undefined })
+        });
+        if (!res.ok) { const err = await res.json(); alert('Invalid rule: ' + (err.detail || JSON.stringify(err))); return; }
+        document.getElementById('policy-text').value = '';
+        document.getElementById('policy-rule-id').value = '';
+        loadPolicyRules();
+    } catch (err) { alert('Failed: ' + err.message); }
+}
+
+async function deletePolicyRule(ruleId) {
+    try { await fetch(`${API}/policy/rules/${ruleId}`, { method: 'DELETE' }); loadPolicyRules(); }
+    catch (err) { alert('Delete failed: ' + err.message); }
+}
+
+// ─── Audit Log ───
+async function loadAuditLog() {
+    // The audit log is populated via the evaluate endpoint's DB writes.
+    // For now, show a static message since we'd need a GET /audit endpoint.
+    // This is a placeholder that demonstrates the UI structure.
+    const tbody = document.getElementById('audit-table-body');
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Audit log loads from the database. Evaluate intents to populate.</td></tr>';
+}
+</script>
+</body>
+</html>
