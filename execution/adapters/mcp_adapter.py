@@ -12,11 +12,11 @@ from contextlib import AsyncExitStack
 try:
     from mcp.client.streamable_http import streamable_http_client
     from mcp.client.session import ClientSession
-    import httpx2
+    import httpx
 except ImportError:
     streamable_http_client = None
     ClientSession = None
-    httpx2 = None
+    httpx = None
 
 from execution.provider import PaymentExecutionProvider
 from execution.schema import ExecutionReceipt
@@ -78,7 +78,7 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
             try:
                 self._exit_stack = AsyncExitStack()
                 http_client = await self._exit_stack.enter_async_context(
-                    httpx2.AsyncClient(headers=headers, timeout=15.0)
+                    httpx.AsyncClient(headers=headers, timeout=15.0)
                 )
                 
                 streams = await self._exit_stack.enter_async_context(
@@ -179,7 +179,7 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
         try:
             # We call the tool via the official SDK
             result = await self._session.call_tool(mcp_tool, arguments=mcp_args)
-            if result.is_error:
+            if getattr(result, "isError", False):
                 error_msg = "Unknown MCP Tool error"
                 if result.content and len(result.content) > 0:
                     error_msg = result.content[0].text
@@ -232,3 +232,13 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
             "allowed_actions": len(self.ALLOWED_ACTIONS),
             "last_health_check": self.last_health_check
         }
+
+    async def close(self):
+        if self._exit_stack:
+            try:
+                await self._exit_stack.aclose()
+            except Exception:
+                pass
+            self._exit_stack = None
+            self._session = None
+            self.status = "DISCONNECTED"

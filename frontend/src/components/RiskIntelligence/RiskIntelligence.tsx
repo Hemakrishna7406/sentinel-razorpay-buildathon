@@ -1,4 +1,4 @@
-import { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
+import type { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
 import { Activity, ShieldAlert, Cpu } from 'lucide-react';
 
 export function RiskIntelligence({ activeEvent }: { activeEvent: SentinelExecutionEvent | null }) {

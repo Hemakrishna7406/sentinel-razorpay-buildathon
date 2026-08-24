@@ -1,4 +1,4 @@
-export type SentinelDecision = 'ALLOWED' | 'CONTAINED' | 'EVALUATING';
+export type SentinelDecision = 'ALLOW' | 'ESCALATE' | 'CONTAIN' | 'EVALUATING';
 
 export interface EvaluationResult {
   id: string;

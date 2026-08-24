@@ -56,7 +56,7 @@ uvicorn api.main:app --host 127.0.0.1 --port 8000
 - `docs/`: Engineering specifications and architecture documentation.
 - `ml/`: Data generation, feature engineering, XGBoost training, and SHAP explanations.
 - `security/`: Capability tokens, Idempotency engine, Policy engine, and NL Policy compiler.
-- `tests/`: 97 automated tests verifying the entire pipeline.
+- `tests/`: 165 automated tests verifying the entire pipeline.
 
 ## Evaluation Methodology
 

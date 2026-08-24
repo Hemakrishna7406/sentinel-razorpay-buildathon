@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from db.models import AuditRecord
 from security.capability_token import IntentContext, CapabilityPayload
+from security.audit_chain import audit_record_hash
 
 
 class AuditWriter:
@@ -25,16 +26,14 @@ class AuditWriter:
         token_payload: Optional[CapabilityPayload] = None
     ) -> AuditRecord:
         """Log the policy engine's decision before execution."""
-        import hashlib
+        import datetime
         
         last_record = self.session.query(AuditRecord).order_by(AuditRecord.id.desc()).first()
-        prev_hash = None
-        if last_record:
-            prev_hash = hashlib.sha256(f"{last_record.id}:{last_record.intent_id}".encode()).hexdigest()
-            
-        record = AuditRecord(
+        prev_hash = last_record.record_hash if last_record else None
+        values = dict(
             previous_hash=prev_hash,
             intent_id=intent.intent_id,
+            timestamp=datetime.datetime.utcnow(),
             agent_id=agent_id,
             action_type=intent.action_type,
             amount=intent.amount,
@@ -45,6 +44,8 @@ class AuditWriter:
             decision_reason=reason,
             capability_jti=token_payload.jti if token_payload else None
         )
+        values["record_hash"] = audit_record_hash(values)
+        record = AuditRecord(**values)
         
         self.session.add(record)
         self.session.commit()

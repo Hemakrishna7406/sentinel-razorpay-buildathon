@@ -2,6 +2,7 @@ import pytest
 import time
 import uuid
 import os
+import asyncio
 from unittest.mock import MagicMock, AsyncMock
 
 from security.capability_token import TokenManager, IntentContext, CapabilityPayload
@@ -225,4 +226,40 @@ async def test_mcp_outage_fails_closed(gateway, valid_intent, mock_token_manager
     with pytest.raises(ValueError, match="Execution failed"):
         await gateway.execute(token, valid_intent)
         
+    assert mock_mcp_adapter._session.call_tool.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_distributed_replay_protection_blocks_second_gateway(valid_intent, mock_mcp_adapter):
+    """A shared Redis claim prevents replay across independent gateway instances."""
+    class ReplayStore:
+        def __init__(self):
+            self.values = set()
+            self.lock = asyncio.Lock()
+
+        async def set(self, key, value, nx=False, ex=None):
+            async with self.lock:
+                if nx and key in self.values:
+                    return None
+                self.values.add(key)
+                return True
+
+    secret = b"test-secret-key-must-be-at-least-32-bytes-long"
+    issuer = TokenManager(secret=secret)
+    verifier_a = TokenManager(secret=secret)
+    verifier_b = TokenManager(secret=secret)
+    store = ReplayStore()
+    gateway_a = ExecutionGateway(verifier_a, mock_mcp_adapter, replay_store=store)
+    gateway_b = ExecutionGateway(verifier_b, mock_mcp_adapter, replay_store=store)
+    token = issuer.issue_token(valid_intent, "ALLOW", ttl_seconds=60)
+
+    mock_result = MagicMock(spec=CallToolResult)
+    mock_result.isError = False
+    mock_result.content = [TextContent(type="text", text="rzp_123")]
+    mock_mcp_adapter._session.call_tool.return_value = mock_result
+
+    await gateway_a.execute(token, valid_intent)
+    with pytest.raises(ValueError, match="replay"):
+        await gateway_b.execute(token, valid_intent)
+
     assert mock_mcp_adapter._session.call_tool.call_count == 1

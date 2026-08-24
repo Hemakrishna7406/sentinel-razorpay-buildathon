@@ -2,7 +2,7 @@
 
 ## Current State
 
-Phase 18 complete.
+Phase 18.1 complete (Baseline Integrity Restoration — all gates A–I locked).
 Next phase: Phase 19 — Chaos & Failure Engineering.
 
 ## Verified Capabilities
@@ -29,8 +29,8 @@ Next phase: Phase 19 — Chaos & Failure Engineering.
 
 ## Current Evidence
 
-- Dataset v1 hash: e4b2c8a7... (to be updated)
-- Dataset v2 hash: f9d3e1b2... (to be updated)
+- Dataset hash (seed=42, 7380 rows, 28 cols): `78f46e5077e468eda712b93edfd3ea09e1de8b84c23ae514bb9f8e964b733ce6`
+- Deterministic generator: `ml/data_generator.py generate_dataset(seed=42)`
 - MCP SDK: 2.0.0
 - MCP protocol: 2025-06-18
 - MCP tools discovered: 42

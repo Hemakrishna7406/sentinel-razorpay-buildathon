@@ -46,6 +46,7 @@ class SimulateResponse(BaseModel):
     total: int
     allowed: int
     escalated: int
+    contained: int
     avg_risk_score: float
     escalation_rate: float
     decisions: List[Dict[str, Any]]

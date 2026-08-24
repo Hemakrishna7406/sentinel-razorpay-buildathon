@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from db.models import Base, AuditRecord
 from security.audit_writer import AuditWriter
+from security.audit_chain import verify_audit_chain
 from security.capability_token import IntentContext, CapabilityPayload
 
 
@@ -95,3 +96,42 @@ def test_log_evaluation_allow_with_token(audit_writer, db_session, sample_intent
     # Verify DB update
     db_record = db_session.query(AuditRecord).filter_by(intent_id="int_audit_1").first()
     assert db_record.executed_tx_id == "tx_xyz789"
+
+
+def test_audit_chain_detects_tampering(audit_writer, db_session, sample_intent):
+    first = audit_writer.log_evaluation(
+        agent_id=sample_intent.agent_id,
+        intent=sample_intent,
+        model_risk=0.1,
+        decision="ALLOW",
+        reason="Cleared",
+    )
+    second_intent = IntentContext(
+        intent_id="int_audit_2",
+        agent_id="agent_1",
+        action_type="payout",
+        amount=2000,
+        currency="INR",
+        recipient="bank_xyz",
+    )
+    second = audit_writer.log_evaluation(
+        agent_id=second_intent.agent_id,
+        intent=second_intent,
+        model_risk=0.9,
+        decision="CONTAIN",
+        reason="Hard policy limit",
+    )
+
+    assert second.previous_hash == first.record_hash
+    valid, checked, invalid_ids = verify_audit_chain(
+        db_session.query(AuditRecord).order_by(AuditRecord.id).all()
+    )
+    assert valid and checked == 2 and not invalid_ids
+
+    second.decision_reason = "tampered"
+    db_session.commit()
+    valid, _, invalid_ids = verify_audit_chain(
+        db_session.query(AuditRecord).order_by(AuditRecord.id).all()
+    )
+    assert not valid
+    assert second.id in invalid_ids

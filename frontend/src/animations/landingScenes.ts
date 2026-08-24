@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import type React from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -6,8 +6,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 export function setupLandingChoreography(
   container: HTMLDivElement,
-  signalRef: React.RefObject<HTMLDivElement>,
-  pulseRef: React.RefObject<any>
+  signalRef: React.RefObject<HTMLDivElement | null>,
+  pulseRef: React.RefObject<{ setAmplitude: (value: number) => void } | null>
 ) {
   const ctx = gsap.context(() => {
     

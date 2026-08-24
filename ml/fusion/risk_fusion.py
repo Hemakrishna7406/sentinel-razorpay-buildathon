@@ -1,20 +1,31 @@
 import logging
 from typing import Optional
 
-from ml.schema import BehavioralRiskResult, SemanticRiskResult, FusionResult
+from ml.schema import BehavioralRiskResult, SemanticRiskResult, FusionResult, Decision
 
 logger = logging.getLogger(__name__)
 
 class RiskFusionEngine:
-    def __init__(self, disagreement_threshold: float = 0.6, base_escalation_threshold: float = 0.5):
+    def __init__(
+        self,
+        disagreement_threshold: float = 0.6,
+        base_escalation_threshold: float = 0.5,
+        containment_threshold: float = 0.85,
+    ):
         self.disagreement_threshold = disagreement_threshold
         self.base_escalation_threshold = base_escalation_threshold
+        self.containment_threshold = containment_threshold
 
     def fuse(self, behavioral: BehavioralRiskResult, semantic: Optional[SemanticRiskResult]) -> FusionResult:
         
         if not semantic:
             # Degraded operation: Semantic provider unavailable
-            decision = "ESCALATE" if behavioral.risk_score >= self.base_escalation_threshold else "ALLOW"
+            if behavioral.risk_score >= self.containment_threshold:
+                decision = Decision.CONTAIN
+            elif behavioral.risk_score >= self.base_escalation_threshold:
+                decision = Decision.ESCALATE
+            else:
+                decision = Decision.ALLOW
             return FusionResult(
                 final_risk=behavioral.risk_score,
                 disagreement=False,
@@ -39,7 +50,7 @@ class RiskFusionEngine:
             return FusionResult(
                 final_risk=final_risk,
                 disagreement=True,
-                decision="ESCALATE",
+                decision=Decision.ESCALATE,
                 reason=f"MODEL DISAGREEMENT: Behavioral ({behavioral.risk_score:.2f}) vs Semantic ({semantic.risk_score:.2f}). Escalate due to uncertainty."
             )
             
@@ -48,21 +59,29 @@ class RiskFusionEngine:
             return FusionResult(
                 final_risk=final_risk,
                 disagreement=False,
-                decision="ESCALATE",
+                decision=Decision.ESCALATE,
                 reason="High semantic risk but low confidence. Treating uncertainty as risk."
+            )
+
+        if final_risk >= self.containment_threshold:
+            return FusionResult(
+                final_risk=final_risk,
+                disagreement=False,
+                decision=Decision.CONTAIN,
+                reason=f"Fused risk score {final_risk:.2f} exceeds containment threshold {self.containment_threshold}.",
             )
 
         if final_risk >= self.base_escalation_threshold:
             return FusionResult(
                 final_risk=final_risk,
                 disagreement=False,
-                decision="ESCALATE",
+                decision=Decision.ESCALATE,
                 reason=f"Fused risk score {final_risk:.2f} exceeds threshold {self.base_escalation_threshold}."
             )
             
         return FusionResult(
             final_risk=final_risk,
             disagreement=False,
-            decision="ALLOW",
+            decision=Decision.ALLOW,
             reason="Models agree. Risk is below escalation threshold."
         )

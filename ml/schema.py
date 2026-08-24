@@ -1,5 +1,11 @@
 from typing import List, Optional
+from enum import Enum
 from pydantic import BaseModel
+
+class Decision(str, Enum):
+    ALLOW = "ALLOW"
+    ESCALATE = "ESCALATE"
+    CONTAIN = "CONTAIN"
 
 class BehavioralRiskResult(BaseModel):
     risk_score: float
@@ -18,7 +24,7 @@ class SemanticRiskResult(BaseModel):
 class FusionResult(BaseModel):
     final_risk: float
     disagreement: bool
-    decision: str  # ALLOW, ESCALATE, CONTAIN
+    decision: Decision
     reason: str
 
 class RiskAssessment(BaseModel):

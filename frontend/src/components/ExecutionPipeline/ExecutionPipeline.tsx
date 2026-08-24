@@ -1,13 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { SentinelExecutionEvent, ExecutionStage } from '../../hooks/useExecutionStream';
+import type { SentinelExecutionEvent, ExecutionStage } from '../../hooks/useExecutionStream';
 import { CheckCircle2, XCircle, Clock, ShieldAlert } from 'lucide-react';
+
+const STAGES: ExecutionStage[] = ['INTENT', 'BEHAVIOR', 'POLICY', 'CAPABILITY', 'MCP', 'RAZORPAY'];
 
 export function ExecutionPipeline({ activeEvent }: { activeEvent: SentinelExecutionEvent | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const signalRef = useRef<HTMLDivElement>(null);
-
-  const STAGES: ExecutionStage[] = ['INTENT', 'BEHAVIOR', 'POLICY', 'CAPABILITY', 'MCP', 'RAZORPAY'];
 
   // GSAP animation logic
   useEffect(() => {

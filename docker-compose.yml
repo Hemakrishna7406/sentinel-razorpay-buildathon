@@ -54,6 +54,16 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://sentinel:sentinelpassword@postgres:5432/sentinel_db
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   sentinel-api:
     build: .
     env_file: .env
@@ -76,8 +86,8 @@ services:
       - .:/app
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       redpanda:
@@ -99,6 +109,8 @@ services:
       - .:/app
     command: python -m worker.evaluator
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       redpanda:
@@ -116,8 +128,8 @@ services:
       - .:/app
     command: python -m worker.audit_consumer
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redpanda:
         condition: service_healthy
 

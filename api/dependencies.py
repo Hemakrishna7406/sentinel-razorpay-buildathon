@@ -113,7 +113,6 @@ async def init_app_state():
     from execution.gateway import ExecutionGateway
     from execution.adapters.mock_adapter import MockPaymentAdapter
     from execution.adapters.mcp_adapter import RazorpayMCPAdapter
-    import os
     
     execution_mode = os.environ.get("EXECUTION_MODE", "mock").lower()
     if execution_mode == "mcp":
@@ -125,7 +124,7 @@ async def init_app_state():
     else:
         provider = MockPaymentAdapter()
         
-    execution_adapter = ExecutionGateway(policy_engine.token_manager, provider)
+    execution_adapter = ExecutionGateway(policy_engine.token_manager, provider, replay_store=redis_client)
     
     idempotency_engine = IdempotencyEngine(
         redis_client=redis_client,
@@ -149,6 +148,8 @@ def get_policy_engine():
     return policy_engine
 
 def get_execution_adapter():
+    if not execution_adapter:
+        raise SentinelSecurityException("Execution gateway unavailable. Failing closed.")
     return execution_adapter
 
 def get_idempotency_engine():

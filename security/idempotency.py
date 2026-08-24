@@ -73,8 +73,20 @@ class IdempotencyEngine:
                 state = existing_val.get("state")
                 if state == "COMPLETED":
                     return existing_val.get("tx_id")
-                elif state == "PROCESSING":
-                    raise IdempotencyConflictException("A request with this idempotency key is currently processing.")
+                elif state in {"PROCESSING", "PUBLISHED", "EVALUATING", "PUBLISH_UNKNOWN"}:
+                    raise IdempotencyConflictException(
+                        f"A request with this idempotency key is already {state.lower()}."
+                    )
+                elif state == "FAILED":
+                    # Retain the record for auditability while allowing an explicit retry.
+                    existing_val["state"] = "PROCESSING"
+                    existing_val["timestamp"] = time.time()
+                    await self.redis_client.set(
+                        redis_idem_key,
+                        json.dumps(existing_val),
+                        ex=self.idempotency_ttl_seconds,
+                    )
+                    return None
                 else:
                     raise IdempotencyConflictException(f"Unknown idempotency state: {state}")
 
@@ -115,10 +127,24 @@ class IdempotencyEngine:
         except Exception as e:
             logger.error(f"Failed to mark idempotency key as completed: {e}")
 
-    async def mark_failed(self, idempotency_key: str):
-        """Delete the idempotency key on failure to allow retries."""
+    async def mark_state(self, idempotency_key: str, state: str):
+        """Persist lifecycle state; never delete a reservation after publication."""
         redis_idem_key = f"idem:{idempotency_key}"
         try:
-            await self.redis_client.delete(redis_idem_key)
+            existing_val_str = await self.redis_client.get(redis_idem_key)
+            if existing_val_str:
+                existing_val = json.loads(existing_val_str)
+                existing_val["state"] = state
+                existing_val["timestamp"] = time.time()
+                await self.redis_client.set(
+                    redis_idem_key, json.dumps(existing_val), ex=self.idempotency_ttl_seconds
+                )
         except Exception as e:
-            logger.error(f"Failed to delete idempotency key on failure: {e}")
+            logger.error(f"Failed to persist idempotency state {state}: {e}")
+
+    async def mark_published(self, idempotency_key: str):
+        await self.mark_state(idempotency_key, "PUBLISHED")
+
+    async def mark_failed(self, idempotency_key: str):
+        """Mark a pre-publication failure; record is retained for a safe retry."""
+        await self.mark_state(idempotency_key, "FAILED")

@@ -4,6 +4,7 @@ import { useGSAP } from '../../animations/gsap';
 
 export interface TrustPulseRef {
   setAmplitude: (val: number) => void;
+  setColor: (color: string) => void;
 }
 
 interface TrustPulseProps {
@@ -33,7 +34,12 @@ const TrustPulse = forwardRef<TrustPulseRef, TrustPulseProps>(({ amplitude = 0 }
   };
 
   useImperativeHandle(ref, () => ({
-    setAmplitude: updateAmplitude
+    setAmplitude: updateAmplitude,
+    setColor: (color: string) => {
+      if (pathRef.current) {
+        gsap.to(pathRef.current, { stroke: color, duration: 0.2 });
+      }
+    },
   }));
   
   // Declarative React prop updater

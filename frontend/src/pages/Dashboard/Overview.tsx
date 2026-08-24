@@ -1,4 +1,3 @@
-import { Activity, ShieldAlert, Zap, Server } from 'lucide-react';
 import { useExecutionStream } from '../../hooks/useExecutionStream';
 import { ExecutionPipeline } from '../../components/ExecutionPipeline/ExecutionPipeline';
 import { DemoControls } from '../../components/DemoControls/DemoControls';
@@ -6,10 +5,9 @@ import { CapabilityToken } from '../../components/CapabilityToken/CapabilityToke
 import { MCPStatus } from '../../components/MCPStatus/MCPStatus';
 import { RiskIntelligence } from '../../components/RiskIntelligence/RiskIntelligence';
 import TrustPulse from '../../components/TrustPulse/TrustPulse';
-import { useMemo } from 'react';
 
 export default function Overview() {
-  const { activeIntent, events, isConnected } = useExecutionStream();
+  const { activeIntent, isConnected } = useExecutionStream();
 
   const isAnomalous = activeIntent?.policy_decision === 'CONTAIN' || activeIntent?.execution_status === 'BLOCKED';
 

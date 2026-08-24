@@ -102,16 +102,19 @@ Same policy-evaluation code path across all three modes — don't fork the logic
 - **Audit**: append-only table, each row includes `hash(prev_row_hash + row_content)`. Verify chain integrity with a standalone script (`tests/test_audit_chain.py`), not just on write.
 - **Config-as-data, not code**: policy thresholds, decision boundaries, and drift-feature parameters live in the `policies`/`policy_versions` tables, not hardcoded constants — this is what makes Simulate mode meaningful (you're testing real config changes, not code changes).
 
-## 6. Deployment (MVP)
+## 6. Deployment (Phase 18 — Production-Grade Single Host)
 
-Single-host `docker-compose` is sufficient and correct for the Sept 5 deadline:
+The actual deployment is a Kafka-enabled multi-service docker-compose, superseding the minimal MVP plan:
 
 ```yaml
 services:
-  api:        # FastAPI, services/api
-  dashboard:  # React, served via nginx or Vite preview
-  postgres:
-  redis:
+  api:          # FastAPI + uvicorn (evaluation gateway)
+  worker:       # Kafka consumer — runs the risk engine + policy engine
+  audit:        # Kafka consumer — writes hash-chained audit records
+  postgres:     # Durable intent/audit storage + Alembic migrations
+  redis:        # JTI replay protection, idempotency state, reply streams
+  redpanda:     # Kafka-compatible message broker (intents.inbound topic)
+  mlflow:       # Model registry (sentinel_xgboost/latest)
 ```
 
-No ECS, no Kafka, no multi-service orchestration — masterplan §31 puts all of that in P2, gated on the P0/P1 list being fully done with time to spare.
+Alembic migrations run automatically on container startup (`alembic upgrade head`). The system requires only `docker compose up` from a clean clone to be fully operational.

@@ -17,7 +17,12 @@ class MockRedis:
     async def get(self, key):
         return self.store.get(key)
     async def set(self, key, value, ex=None, nx=False):
+        if nx and key in self.store:
+            return None
         self.store[key] = value
+        return True
+    async def delete(self, key):
+        self.store.pop(key, None)
 
 
 @pytest.fixture
@@ -99,4 +104,3 @@ async def test_behavioral_duplicate_expires(engine, base_intent):
     
     tx_id = await engine.check_and_record(key2, base_intent, "agent_1")
     assert tx_id is None
-

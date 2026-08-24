@@ -7,22 +7,33 @@ FastAPI service implementing the modules in `architecture.md`. Python 3.11+, Fas
 ## 1. API surface (from masterplan §24 — do not exceed this without a reason)
 
 ```
-POST   /agents                        register an agent
-GET    /agents/{agent_id}             agent details
-GET    /agents/{agent_id}/profile     current behavioral profile
+# Primary evaluation paths (sync and async)
+POST   /evaluate                       submit a financial intent (sync — blocks on evaluator reply)
+POST   /evaluate/async                 submit a financial intent (async — returns 202, poll via audit)
 
-POST   /intents                       submit a financial intent (idempotent)
-GET    /intents/{intent_id}           intent status
+# Execution (token-gated, separate from evaluation)
+POST   /execute                        execute with capability token
 
-POST   /authorize                     internal: run the full decision pipeline for an intent
-GET    /decisions/{decision_id}       decision detail incl. SHAP reasons (P1)
+# Policy management
+GET    /policy/rules                   list active NL policy rules
+POST   /policy/rules                   add a natural language policy rule
+DELETE /policy/rules/{rule_id}         delete a policy rule
 
-POST   /capabilities/verify           execution layer calls this before executing
-POST   /simulate                      P1: dry-run a candidate policy against historical intents
+# Simulation
+POST   /simulate                       dry-run evaluation against synthetic data
 
-GET    /audit                         paginated audit trail
-GET    /audit/verify                  verify hash-chain integrity (ops/debug endpoint)
+# Audit
+GET    /api/audit                      paginated audit trail
+GET    /audit/verify                   verify hash-chain integrity (ops/debug endpoint)
+
+# Infrastructure
+GET    /live                           liveness probe
+GET    /ready                          readiness probe (Redis + DB)
+GET    /execution/provider             execution gateway provider health
+GET    /execution/stream               SSE execution event stream
 ```
+
+> Note: Phase 18 unified the original `/intents` + `/authorize` paths into a single `/evaluate` endpoint that atomically reserves idempotency, publishes to Kafka, and blocks on the evaluator reply via Redis Streams. The `/execute` endpoint is the separate token-gated execution boundary.
 
 ## 2. Pydantic models (core ones)
 
@@ -72,7 +83,7 @@ def issue(intent: Intent, decision: Decision) -> CapabilityToken:
         transaction_id=generate_transaction_id(), amount=intent.amount,
         currency=intent.currency, recipient_id=intent.recipient_id,
         decision_id=decision.id, policy_version=decision.policy_version,
-        expires_at=now() + timedelta(seconds=90), nonce=secrets.token_hex(16),
+        expires_at=now() + timedelta(seconds=5), nonce=secrets.token_hex(16),
     )
     token.signature = hmac_sign(token.dict(exclude={"signature"}), SECRET_KEY)
     store_token(token)  # Redis, TTL = expires_at

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
-import { Server, Activity, ShieldCheck, Clock } from 'lucide-react';
+import type { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
+import { Server, ShieldCheck, Clock } from 'lucide-react';
 
 export function MCPStatus({ activeEvent }: { activeEvent: SentinelExecutionEvent | null }) {
   const [providerInfo, setProviderInfo] = useState<any>(null);
 
   useEffect(() => {
-    fetch('/api/execution/provider')
+    fetch('/execution/provider')
       .then(res => res.json())
       .then(data => setProviderInfo(data))
       .catch(console.error);

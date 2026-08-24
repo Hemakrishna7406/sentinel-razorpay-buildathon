@@ -76,7 +76,9 @@ class TokenManager:
             # Allow passing explicit secret for tests
             self._secret = secret
             
-        self._consumed_jtis = set()  # In-memory replay cache (mocking Redis)
+        # Compatibility-only local store for the legacy synchronous simulator.
+        # Production execution uses ExecutionGateway's Redis-backed claim.
+        self._consumed_jtis = set()
 
     def _sign(self, payload_str: str) -> str:
         """Sign a string payload using HMAC-SHA256."""
@@ -113,7 +115,9 @@ class TokenManager:
         
         return f"{payload_str}.{signature}"
 
-    def verify_token(self, token: str, context: IntentContext) -> CapabilityPayload:
+    def verify_token(
+        self, token: str, context: IntentContext, *, consume: bool = True
+    ) -> CapabilityPayload:
         """
         Verify a token against the execution context.
         Enforces all 10 invariants.
@@ -144,7 +148,7 @@ class TokenManager:
             raise TokenExpiredException(f"Token expired {now - payload.expires_at} seconds ago.")
             
         # Invariant 6: Replay prevention (Nonce/JTI)
-        if payload.jti in self._consumed_jtis:
+        if consume and payload.jti in self._consumed_jtis:
             raise TokenInvalidException("Token has already been consumed (replay attack).")
             
         # Invariant 1, 2, 3, 4, 9: Strict bounding to context
@@ -161,7 +165,9 @@ class TokenManager:
         if payload.recipient != context.recipient:
             raise TokenInvalidException("Recipient mismatch.")
             
-        # Consume the token
-        self._consumed_jtis.add(payload.jti)
+        # The synchronous simulator consumes locally for backwards compatibility.
+        # ExecutionGateway passes consume=False and atomically claims the JTI in Redis.
+        if consume:
+            self._consumed_jtis.add(payload.jti)
         
         return payload

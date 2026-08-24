@@ -1,4 +1,4 @@
-import { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
+import type { SentinelExecutionEvent } from '../../hooks/useExecutionStream';
 import { Lock, CheckCircle2, XCircle } from 'lucide-react';
 
 export function CapabilityToken({ activeEvent }: { activeEvent: SentinelExecutionEvent | null }) {

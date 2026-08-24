@@ -64,6 +64,7 @@ class IntentRequest(BaseModel):
 class EvaluationResponse(BaseModel):
     intent_id: str
     decision: str
+    reason: Optional[str] = None
     capability_token: Optional[str] = None
     executed_tx_id: Optional[str] = None
     latency_ms: int
@@ -134,7 +135,8 @@ async def evaluate_intent_sync(
     if existing_tx:
         return EvaluationResponse(
             intent_id=intent.intent_id,
-            decision="ALLOW",
+                decision="ALLOW",
+                reason="Idempotent replay of completed execution.",
             capability_token=None,
             executed_tx_id=existing_tx,
             latency_ms=0
@@ -150,11 +152,18 @@ async def evaluate_intent_sync(
         "idempotency_key": idempotency_key
     }
     
-    await kafka_producer.send_and_wait(
-        KAFKA_INBOUND_TOPIC,
-        key=intent.agent_id.encode('utf-8'),
-        value=json.dumps(payload).encode('utf-8')
-    )
+    try:
+        await kafka_producer.send_and_wait(
+            KAFKA_INBOUND_TOPIC,
+            key=intent.agent_id.encode('utf-8'),
+            value=json.dumps(payload).encode('utf-8')
+        )
+        await idem_engine.mark_published(idempotency_key)
+    except Exception:
+        # Kafka acknowledgement may be uncertain; retain the reservation to prevent
+        # duplicate publication and force explicit reconciliation.
+        await idem_engine.mark_state(idempotency_key, "PUBLISH_UNKNOWN")
+        raise SentinelSecurityException("Intent publication unavailable or uncertain. Failing closed.")
     
     # Wait on Redis Stream for Reply
     reply_key = f"reply:{intent.intent_id}"
@@ -162,17 +171,22 @@ async def evaluate_intent_sync(
         response = await redis_client.xread({reply_key: '0'}, count=1, block=5000)
         
         if not response:
-            await idem_engine.mark_failed(idempotency_key)
             raise HTTPException(status_code=504, detail="Timeout waiting for evaluation")
             
         stream_name, messages = response[0]
         message_id, message_data = messages[0]
         
-        result = json.loads(message_data["data"])
+        raw_result = message_data.get("data", message_data.get(b"data"))
+        if raw_result is None:
+            raise SentinelSecurityException("Malformed evaluator reply. Failing closed.")
+        if isinstance(raw_result, bytes):
+            raw_result = raw_result.decode("utf-8")
+        result = json.loads(raw_result)
         
         return EvaluationResponse(
             intent_id=result["intent_id"],
             decision=result["decision"],
+            reason=result.get("decision_reason"),
             capability_token=result.get("capability_token"),
             executed_tx_id=None,
             latency_ms=result.get("latency_ms", 0)
@@ -180,7 +194,6 @@ async def evaluate_intent_sync(
         
     except Exception as e:
         logger.error(f"Error during synchronous evaluation: {e}")
-        await idem_engine.mark_failed(idempotency_key)
         raise
 
 @app.post("/evaluate/async", status_code=202)
@@ -221,11 +234,16 @@ async def evaluate_intent_async(
         "idempotency_key": idempotency_key
     }
     
-    await kafka_producer.send_and_wait(
-        KAFKA_INBOUND_TOPIC,
-        key=intent.agent_id.encode('utf-8'),
-        value=json.dumps(payload).encode('utf-8')
-    )
+    try:
+        await kafka_producer.send_and_wait(
+            KAFKA_INBOUND_TOPIC,
+            key=intent.agent_id.encode('utf-8'),
+            value=json.dumps(payload).encode('utf-8')
+        )
+        await idem_engine.mark_published(idempotency_key)
+    except Exception:
+        await idem_engine.mark_state(idempotency_key, "PUBLISH_UNKNOWN")
+        raise SentinelSecurityException("Intent publication unavailable or uncertain. Failing closed.")
     
     return {"intent_id": intent.intent_id, "status": "PROCESSING"}
 
@@ -431,11 +449,11 @@ def run_simulation(
     from ml.data_generator import generate_dataset
     
     df = generate_dataset(seed=req.seed, num_agents_train_val=4, num_agents_test_only=2)
-    test_df = df[df["split"] == "test"].head(req.num_samples).copy()
+    test_df = df[df["day"] >= 26].head(req.num_samples).copy()
     
     if len(test_df) == 0:
         return SimulateResponse(
-            total=0, allowed=0, escalated=0,
+            total=0, allowed=0, escalated=0, contained=0,
             avg_risk_score=0.0, escalation_rate=0.0, decisions=[]
         )
     
@@ -447,20 +465,34 @@ def run_simulation(
         features = extract_features(raw_context)
         
         model_risk = 0.0
-        if model_wrapper.model:
+        if getattr(model_wrapper, 'model', None):
             feat_df = pd.DataFrame([features])[model_wrapper.features]
             dmatrix = xgb.DMatrix(feat_df)
             model_risk = float(model_wrapper.model.predict(dmatrix)[0])
         
         intent = IntentContext(
             intent_id=f"sim_{row.name}",
+            agent_id=str(raw_context.get("agent_id", "simulation-agent")),
             action_type=raw_context.get("action_type", "payout"),
             amount=int(raw_context.get("amount", 0)),
             currency="INR",
             recipient=raw_context.get("recipient", "sim_recipient"),
         )
         
-        decision, reason, _ = policy_engine.evaluate(intent, raw_context, model_risk)
+        from ml.fusion.risk_fusion import RiskFusionEngine
+        from ml.schema import BehavioralRiskResult, RiskAssessment
+
+        behavioral = BehavioralRiskResult(
+            risk_score=model_risk,
+            confidence=1.0,
+            reason_codes=["SIMULATION"],
+            model_version="simulation",
+        )
+        fusion = RiskFusionEngine(
+            base_escalation_threshold=getattr(model_wrapper, 'suspicious_threshold', 0.5)
+        ).fuse(behavioral, None)
+        assessment = RiskAssessment(behavioral=behavioral, fusion=fusion)
+        decision, reason, _ = policy_engine.evaluate(intent, raw_context, assessment)
         
         risk_scores.append(model_risk)
         decisions.append({
@@ -476,12 +508,14 @@ def run_simulation(
     
     allowed = sum(1 for d in decisions if d["decision"] == "ALLOW")
     escalated = sum(1 for d in decisions if d["decision"] == "ESCALATE")
+    contained = sum(1 for d in decisions if d["decision"] == "CONTAIN")
     avg_risk = sum(risk_scores) / len(risk_scores) if risk_scores else 0.0
     
     return SimulateResponse(
         total=len(decisions),
         allowed=allowed,
         escalated=escalated,
+        contained=contained,
         avg_risk_score=round(avg_risk, 4),
         escalation_rate=round(escalated / len(decisions), 4) if decisions else 0.0,
         decisions=decisions,
@@ -541,6 +575,16 @@ def get_audit_log(limit: int = 50, db: Session = Depends(get_db)):
         }
         for r in records
     ]
+
+@app.get("/audit/verify")
+def verify_audit_log(db: Session = Depends(get_db)):
+    """Verify every persisted audit record from genesis to the newest entry."""
+    from db.models import AuditRecord
+    from security.audit_chain import verify_audit_chain
+
+    records = db.query(AuditRecord).order_by(AuditRecord.id.asc()).all()
+    valid, checked, invalid_ids = verify_audit_chain(records)
+    return {"status": "PASS" if valid else "FAIL", "records_checked": checked, "invalid_record_ids": invalid_ids}
 
 @app.get("/live")
 def liveness_check():

@@ -1,4 +1,4 @@
-import { useDemoScenario, DemoScenario } from '../../hooks/useDemoScenario';
+import { useDemoScenario } from '../../hooks/useDemoScenario';
 import { Play, AlertTriangle, ShieldX, TerminalSquare } from 'lucide-react';
 
 export function DemoControls() {

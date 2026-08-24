@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Search, Filter, Download } from 'lucide-react';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { useExecutionStream } from '../../hooks/useExecutionStream';
 import type { SentinelDecision } from '../../types';
 
 export default function AuditLog() {
-  const { messages } = useWebSocket({ url: '', mock: true });
+  const { events } = useExecutionStream();
   const [filter, setFilter] = useState<SentinelDecision | 'ALL'>('ALL');
 
-  const filteredMessages = messages.filter(m => filter === 'ALL' || m.decision === filter);
+  const filteredMessages = events.filter(m => filter === 'ALL' || m.policy_decision === filter);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -41,7 +41,7 @@ export default function AuditLog() {
            <div className="flex items-center gap-2">
              <Filter size={16} className="text-muted" />
              <div className="flex bg-panel rounded-md border border-muted/20 p-1">
-               {['ALL', 'ALLOWED', 'CONTAINED'].map((f) => (
+               {['ALL', 'ALLOW', 'ESCALATE', 'CONTAIN'].map((f) => (
                  <button
                    key={f}
                    onClick={() => setFilter(f as any)}
@@ -75,25 +75,25 @@ export default function AuditLog() {
                   </td>
                 </tr>
               ) : (
-                filteredMessages.map((msg) => (
-                  <tr key={msg.id} className="hover:bg-muted/5 transition-colors">
+                filteredMessages.map((msg, idx) => (
+                  <tr key={msg.event_id || idx} className="hover:bg-muted/5 transition-colors">
                     <td className="px-6 py-4 text-sm text-muted">
                       {new Date(msg.timestamp).toLocaleTimeString()}
                     </td>
-                    <td className="px-6 py-4 text-sm font-mono text-text">{msg.id}</td>
-                    <td className="px-6 py-4 text-sm">{msg.action}</td>
+                    <td className="px-6 py-4 text-sm font-mono text-text">{msg.intent_id}</td>
+                    <td className="px-6 py-4 text-sm">{msg.mcp_tool || 'UNKNOWN'}</td>
                     <td className="px-6 py-4 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs font-mono ${msg.riskScore > 75 ? 'bg-contain/20 text-contain' : 'bg-signal/20 text-signal'}`}>
-                        {msg.riskScore.toFixed(1)}
+                      <span className={`px-2 py-1 rounded text-xs font-mono ${(msg.behavioral_risk || 0) > 0.75 ? 'bg-contain/20 text-contain' : 'bg-signal/20 text-signal'}`}>
+                        {msg.behavioral_risk?.toFixed(2) || '0.00'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-mono font-bold">
-                      <span className={msg.decision === 'CONTAINED' ? 'text-contain' : 'text-signal'}>
-                        {msg.decision}
+                      <span className={msg.policy_decision === 'CONTAIN' ? 'text-contain' : (msg.policy_decision === 'ESCALATE' ? 'text-yellow-500' : 'text-signal')}>
+                        {msg.policy_decision || 'EVALUATING'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted max-w-[200px] truncate">
-                      {msg.reasons.length > 0 ? msg.reasons.join(', ') : '-'}
+                      {(msg.reason_codes && msg.reason_codes.length > 0) ? msg.reason_codes.join(', ') : '-'}
                     </td>
                   </tr>
                 ))

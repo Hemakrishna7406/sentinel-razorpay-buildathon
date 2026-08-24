@@ -17,6 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import insert
 
 from db.models import AuditRecord
+from security.audit_chain import audit_record_hash
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,11 +56,8 @@ async def main():
                             await consumer.commit()
                             continue
                             
-                    import hashlib
                     last_record = db.query(AuditRecord).order_by(AuditRecord.id.desc()).first()
-                    prev_hash = None
-                    if last_record:
-                        prev_hash = hashlib.sha256(f"{last_record.id}:{last_record.intent_id}".encode()).hexdigest()
+                    prev_hash = last_record.record_hash if last_record else None
                     
                     jti = None
                     token = event.get("capability_token")
@@ -88,6 +86,7 @@ async def main():
                         "capability_jti": jti,
                         "executed_tx_id": None
                     }
+                    record_dict["record_hash"] = audit_record_hash(record_dict)
                     
                     if "postgresql" in DB_URL:
                         stmt = insert(AuditRecord).values(**record_dict)

@@ -25,20 +25,17 @@ async def test_redis_unavailable_fails_closed():
 
 def test_model_unavailable_escalates(monkeypatch):
     """If ML model is down, we must ESCALATE (fail closed)."""
-    from worker.evaluator import IntentEvaluator
-    
-    # Mock dependencies
-    policy_engine = MagicMock()
-    token_manager = MagicMock()
-    # Mock model wrapper to throw exception
-    model_wrapper = MagicMock()
-    model_wrapper.model = None # Simulating unavailable
-    
-    evaluator = IntentEvaluator(redis_client=MagicMock(), policy_engine=policy_engine, token_manager=token_manager, model_wrapper=model_wrapper)
-    
-    # If model is down, evaluator should still process but with risk = 0 or fallback to policy which ESCALATES.
-    # Our current evaluator does: risk = 0.0 if not model else ...
-    # But wait, we should test that the system fails closed if policy engine is unavailable.
+    from ml.fusion.risk_fusion import RiskFusionEngine
+    from ml.schema import BehavioralRiskResult
+
+    unavailable_model_signal = BehavioralRiskResult(
+        risk_score=1.0,
+        confidence=1.0,
+        reason_codes=["MODEL_UNAVAILABLE"],
+        model_version="unavailable",
+    )
+    result = RiskFusionEngine().fuse(unavailable_model_signal, None)
+    assert result.decision == "CONTAIN"
 
 def test_policy_engine_unavailable_fails_closed():
     """Policy engine failure must BLOCK and yield 0 MCP calls."""

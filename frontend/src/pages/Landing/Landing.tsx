@@ -1,4 +1,5 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import { useRef, useLayoutEffect } from 'react';
+import type { TrustPulseRef } from '../../components/TrustPulse/TrustPulse';
 import { setupLandingChoreography } from '../../animations/landingScenes';
 import TrustPulse from '../../components/TrustPulse/TrustPulse';
 import { ShieldAlert, ArrowDown } from 'lucide-react';
@@ -7,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 export default function Landing() {
   const containerRef = useRef<HTMLDivElement>(null);
   const signalRef = useRef<HTMLDivElement>(null);
-  const pulseRef = useRef<any>(null);
+  const pulseRef = useRef<TrustPulseRef>(null);
   const navigate = useNavigate();
 
   useLayoutEffect(() => {

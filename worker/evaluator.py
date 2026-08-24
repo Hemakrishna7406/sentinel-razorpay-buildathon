@@ -87,8 +87,9 @@ async def main():
                 features = extract_features(context_data)
                 
                 # 3. Behavioral ML Inference
-                model_risk = 0.0
-                if model_wrapper.model:
+                model_risk = 1.0
+                model_available = model_wrapper.model is not None
+                if model_available:
                     df_feats = pd.DataFrame([features])[model_wrapper.features]
                     dmatrix = xgb.DMatrix(df_feats)
                     model_risk = float(model_wrapper.model.predict(dmatrix)[0])
@@ -96,16 +97,23 @@ async def main():
                 from ml.schema import BehavioralRiskResult, RiskAssessment
                 behavioral = BehavioralRiskResult(
                     risk_score=model_risk,
-                    confidence=0.92, # Placeholder confidence
-                    reason_codes=["VELOCITY_DRIFT"] if model_risk > 0.5 else ["NORMAL"],
+                    confidence=0.92 if model_available else 1.0,
+                    reason_codes=(
+                        ["VELOCITY_DRIFT"] if model_available and model_risk > 0.5
+                        else ["NORMAL"] if model_available
+                        else ["MODEL_UNAVAILABLE"]
+                    ),
                     model_version="xgb-v3"
                 )
 
                 # 3.1 Semantic Provider Inference
-                try:
-                    semantic_result = semantic_client.evaluate(intent, context_data)
-                except Exception as e:
-                    logger.warning(f"Semantic Provider unavailable: {e}")
+                if model_available:
+                    try:
+                        semantic_result = semantic_client.evaluate(intent, context_data)
+                    except Exception as e:
+                        logger.warning(f"Semantic Provider unavailable: {e}")
+                        semantic_result = None
+                else:
                     semantic_result = None
 
                 # 3.2 Risk Fusion
@@ -117,12 +125,14 @@ async def main():
                     fusion=fusion_result
                 )
 
+                from ml.schema import Decision
                 # 4. Policy Evaluation
                 decision, reason, token = policy_engine.evaluate(intent, context_data, assessment)
                 
                 if mode.lower() == "observe":
-                    decision = "ALLOW"
-                    reason = f"[OBSERVE MODE] Shadow decision was {decision}: {reason}"
+                    shadow_decision = decision.value
+                    decision = Decision.ALLOW
+                    reason = f"[OBSERVE MODE] Shadow decision was {shadow_decision}: {reason}"
                     token = None
                 
                 # 5. Build Result Payload
@@ -137,7 +147,7 @@ async def main():
                     "behavioral_risk_score": behavioral.risk_score,
                     "semantic_risk_score": semantic_result.risk_score if semantic_result else None,
                     "fusion_disagreement": fusion_result.disagreement,
-                    "decision": decision,
+                    "decision": decision.value,
                     "decision_reason": reason,
                     "capability_token": token,
                     "timestamp": time.time(),

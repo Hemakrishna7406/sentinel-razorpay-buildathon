@@ -20,6 +20,7 @@ class AuditRecord(Base):
     
     # Audit chain ordering
     previous_hash = Column(String, nullable=True, index=True)
+    record_hash = Column(String, nullable=False, unique=True, index=True)
     
     # Intent identity
     intent_id = Column(String, unique=True, index=True, nullable=False)
