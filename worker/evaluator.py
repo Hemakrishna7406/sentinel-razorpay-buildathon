@@ -87,7 +87,7 @@ async def main():
                 features = extract_features(context_data)
                 
                 # 3. Behavioral ML Inference
-                model_risk = 1.0
+                model_risk = None
                 model_available = model_wrapper.model is not None
                 if model_available:
                     df_feats = pd.DataFrame([features])[model_wrapper.features]
@@ -97,7 +97,8 @@ async def main():
                 from ml.schema import BehavioralRiskResult, RiskAssessment
                 behavioral = BehavioralRiskResult(
                     risk_score=model_risk,
-                    confidence=0.92 if model_available else 1.0,
+                    risk_status="MODEL_AVAILABLE" if model_available else "MODEL_UNAVAILABLE",
+                    confidence=0.92 if model_available else 0.0,
                     reason_codes=(
                         ["VELOCITY_DRIFT"] if model_available and model_risk > 0.5
                         else ["NORMAL"] if model_available

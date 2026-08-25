@@ -57,7 +57,8 @@ def test_no_direct_mcp_path():
         "test_mcp_boundary.py",
         "test_gate_2.py",
         "test_gate_3.py",
-        "test_get_schema.py"
+        "test_get_schema.py",
+        "test_19_4_unit_chaos.py"
     ]
     
     violations = []

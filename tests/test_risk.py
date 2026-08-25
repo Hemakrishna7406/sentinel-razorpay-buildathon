@@ -11,6 +11,11 @@ import pytest
 from ml.data_generator import generate_dataset
 import mlflow
 mlflow.autolog(disable=True)
+try:
+    mlflow.xgboost.autolog(disable=True)
+except Exception:
+    pass
+
 from ml.evaluate import compute_metrics, find_optimal_threshold
 from ml.train import run_training_pipeline
 

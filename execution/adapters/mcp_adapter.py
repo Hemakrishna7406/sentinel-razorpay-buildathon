@@ -192,10 +192,19 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
             execution_status = "SUCCESS"
         except Exception as e:
             logger.error(f"MCP Call Failed: {e}")
+            err_str = str(e).lower()
+            
             # Trigger reconnection backoff on next attempt if session broke
-            if "connection" in str(e).lower() or "stream" in str(e).lower():
+            if "connection" in err_str or "stream" in err_str:
                 self.status = "DEGRADED" 
-            raise Exception(f"Failed to execute MCP tool '{mcp_tool}': {str(e)}")
+                
+            # Distinguish between definitive failure and ambiguous timeout
+            if "timeout" in err_str or "readtimeout" in err_str:
+                execution_status = "UNKNOWN"
+            else:
+                execution_status = "FAILED"
+                
+            result_data = f"Error: {str(e)}"
             
         latency = int((time.time() - start_time) * 1000)
         

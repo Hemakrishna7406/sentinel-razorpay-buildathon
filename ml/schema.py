@@ -8,7 +8,8 @@ class Decision(str, Enum):
     CONTAIN = "CONTAIN"
 
 class BehavioralRiskResult(BaseModel):
-    risk_score: float
+    risk_score: Optional[float] = None
+    risk_status: Optional[str] = None
     confidence: float
     reason_codes: List[str]
     model_version: str
@@ -22,7 +23,7 @@ class SemanticRiskResult(BaseModel):
     latency_ms: int
 
 class FusionResult(BaseModel):
-    final_risk: float
+    final_risk: Optional[float] = None
     disagreement: bool
     decision: Decision
     reason: str

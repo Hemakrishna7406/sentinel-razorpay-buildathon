@@ -272,9 +272,17 @@ async def execute_intent(
         receipt = await gateway.execute(req.capability_token, intent_context)
         
         intent_hash = idem_engine._hash_intent(intent_context)
-        await idem_engine.mark_completed(idempotency_key, intent_hash, receipt.execution_id)
         
-        return ExecuteResponse(executed_tx_id=receipt.execution_id, status="SUCCESS")
+        if receipt.status == "SUCCESS":
+            await idem_engine.mark_completed(idempotency_key, intent_hash, receipt.execution_id)
+            return ExecuteResponse(executed_tx_id=receipt.execution_id, status="SUCCESS")
+        elif receipt.status == "UNKNOWN":
+            await idem_engine.mark_state(idempotency_key, "UNKNOWN")
+            return ExecuteResponse(executed_tx_id=receipt.execution_id, status="UNKNOWN")
+        else:
+            await idem_engine.mark_state(idempotency_key, "FAILED")
+            return ExecuteResponse(executed_tx_id=receipt.execution_id, status="FAILED")
+            
     except ValueError as e:
         raise SentinelSecurityException(str(e))
 

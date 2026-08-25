@@ -73,7 +73,7 @@ class IdempotencyEngine:
                 state = existing_val.get("state")
                 if state == "COMPLETED":
                     return existing_val.get("tx_id")
-                elif state in {"PROCESSING", "PUBLISHED", "EVALUATING", "PUBLISH_UNKNOWN"}:
+                elif state in {"PROCESSING", "PUBLISHING", "PUBLISHED", "EVALUATING", "PUBLISH_UNKNOWN"}:
                     raise IdempotencyConflictException(
                         f"A request with this idempotency key is already {state.lower()}."
                     )
@@ -142,8 +142,14 @@ class IdempotencyEngine:
         except Exception as e:
             logger.error(f"Failed to persist idempotency state {state}: {e}")
 
+    async def mark_publishing(self, idempotency_key: str):
+        await self.mark_state(idempotency_key, "PUBLISHING")
+
     async def mark_published(self, idempotency_key: str):
         await self.mark_state(idempotency_key, "PUBLISHED")
+
+    async def mark_publish_unknown(self, idempotency_key: str):
+        await self.mark_state(idempotency_key, "PUBLISH_UNKNOWN")
 
     async def mark_failed(self, idempotency_key: str):
         """Mark a pre-publication failure; record is retained for a safe retry."""

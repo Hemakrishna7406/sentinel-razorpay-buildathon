@@ -44,6 +44,10 @@ class PolicyEngine:
                 ),
             )
 
+        # Rule 0: Model Availability
+        if getattr(assessment.behavioral, "risk_status", None) == "MODEL_UNAVAILABLE":
+            return Decision.ESCALATE, "Behavioral model is unavailable. Failing closed.", None
+
         # NL Policy Rules (user-defined, evaluated first)
         nl_context = {
             **context_features,
@@ -52,7 +56,7 @@ class PolicyEngine:
             "currency": intent.currency,
             "recipient": intent.recipient,
             "model_risk": assessment.behavioral.risk_score,
-            "semantic_risk": assessment.semantic.risk_score if assessment.semantic else 0.0,
+            "semantic_risk": assessment.semantic.risk_score if assessment.semantic else None,
             "fusion_risk": assessment.fusion.final_risk
         }
         should_escalate, nl_reason = self.nl_compiler.evaluate(nl_context)

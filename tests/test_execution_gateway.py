@@ -212,8 +212,9 @@ async def test_unauthorized_mcp_tool_means_no_mcp_call(gateway, valid_intent, mo
     # Mock Policy giving capability for this anyway
     token = mock_token_manager.issue_token(unauthorized_intent, "ALLOW", ttl_seconds=60)
     
-    with pytest.raises(ValueError, match="not in the allowed MCP actions registry"):
-        await gateway.execute(token, unauthorized_intent)
+    receipt = await gateway.execute(token, unauthorized_intent)
+    assert receipt.status == "FAILED"
+    assert "not in the allowed MCP actions registry" in receipt.provider_reference
         
     assert mock_mcp_adapter._session.call_tool.call_count == 0
 
@@ -223,8 +224,8 @@ async def test_mcp_outage_fails_closed(gateway, valid_intent, mock_token_manager
     
     mock_mcp_adapter._session.call_tool.side_effect = Exception("503 Service Unavailable")
     
-    with pytest.raises(ValueError, match="Execution failed"):
-        await gateway.execute(token, valid_intent)
+    receipt = await gateway.execute(token, valid_intent)
+    assert receipt.status == "FAILED"
         
     assert mock_mcp_adapter._session.call_tool.call_count == 1
 

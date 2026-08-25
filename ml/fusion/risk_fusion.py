@@ -17,6 +17,13 @@ class RiskFusionEngine:
         self.containment_threshold = containment_threshold
 
     def fuse(self, behavioral: BehavioralRiskResult, semantic: Optional[SemanticRiskResult]) -> FusionResult:
+        if behavioral.risk_score is None or getattr(behavioral, "risk_status", None) == "MODEL_UNAVAILABLE":
+            return FusionResult(
+                final_risk=None,
+                disagreement=False,
+                decision=Decision.ESCALATE,
+                reason="Behavioral model unavailable (risk score is NULL). Uncertainty implies risk."
+            )
         
         if not semantic:
             # Degraded operation: Semantic provider unavailable
