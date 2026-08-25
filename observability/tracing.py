@@ -31,8 +31,9 @@ def _init_tracing() -> None:
         return
     _tracer_initialized = True
 
-    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-    service_name = os.environ.get("OTEL_SERVICE_NAME", "sentinel")
+    from core.config import settings
+    endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
+    service_name = settings.OTEL_SERVICE_NAME
 
     try:
         from opentelemetry import trace

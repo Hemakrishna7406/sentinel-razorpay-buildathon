@@ -6,6 +6,10 @@ os.environ.setdefault("CAPABILITY_SIGNING_KEY", "test-secret-key-must-be-at-leas
 os.environ["MLFLOW_TRACKING_URI"] = "file:///tmp/mlruns"
 os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
 
+from core.config import settings
+settings.CAPABILITY_SIGNING_KEY = "test-secret-key-must-be-at-least-32-bytes-long"
+settings.MLFLOW_TRACKING_URI = "file:///tmp/mlruns"
+
 class MockRedis:
     def __init__(self):
         self.store = {}

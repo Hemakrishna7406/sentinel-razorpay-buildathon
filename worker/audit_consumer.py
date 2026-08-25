@@ -13,10 +13,10 @@ Phase 21 Observability:
 
 import asyncio
 import json
-import os
 import time
 import threading
 
+from core.config import settings
 from aiokafka import AIOKafkaConsumer
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -29,10 +29,10 @@ from observability.metrics import POSTGRES_LATENCY, POSTGRES_ERRORS_TOTAL
 
 logger = get_logger(__name__)
 
-KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:29092")
-EVALUATED_TOPIC = os.environ.get("KAFKA_EVALUATED_TOPIC", "intents.evaluated")
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./sentinel.db")
-METRICS_PORT = int(os.environ.get("METRICS_PORT", "8002"))
+KAFKA_BROKER = settings.KAFKA_BROKER
+EVALUATED_TOPIC = settings.KAFKA_EVALUATED_TOPIC
+DB_URL = settings.DATABASE_URL
+METRICS_PORT = settings.AUDIT_METRICS_PORT
 
 
 def _start_metrics_server() -> None:

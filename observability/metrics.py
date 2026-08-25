@@ -242,7 +242,8 @@ def _canonicalize_reason(reason: str) -> str:
 # Initialize capacity gauge from env at module load time
 def _init_capacity() -> None:
     try:
-        cap = int(os.environ.get("MAX_CONCURRENT_TASKS", "2"))
+        from core.config import settings
+        cap = settings.MAX_CONCURRENT_TASKS
         WORKER_CAPACITY.set(cap)
     except Exception:
         pass

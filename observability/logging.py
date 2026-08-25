@@ -21,9 +21,10 @@ import time
 from typing import Any
 
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
-JSON_LOGS = os.environ.get("JSON_LOGS", "true").lower() != "false"
+from core.config import settings
+ENVIRONMENT = settings.ENVIRONMENT
+LOG_LEVEL = settings.LOG_LEVEL.upper()
+JSON_LOGS = settings.JSON_LOGS
 
 
 class _JsonFormatter(logging.Formatter):

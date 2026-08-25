@@ -28,8 +28,9 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
     def __init__(self, environment: str = "test"):
         self.environment = environment
         self.mcp_url = "https://mcp.razorpay.com/mcp"
-        self.key_id = os.environ.get("RAZORPAY_KEY_ID")
-        self.key_secret = os.environ.get("RAZORPAY_KEY_SECRET")
+        from core.config import settings
+        self.key_id = settings.RAZORPAY_KEY_ID
+        self.key_secret = settings.RAZORPAY_KEY_SECRET
         self.status = "DISCONNECTED"
         self.last_health_check = None
         self.available_tools = 0

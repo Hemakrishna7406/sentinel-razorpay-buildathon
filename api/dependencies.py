@@ -9,6 +9,7 @@ and instantiates the core engines.
 import os
 import json
 import logging
+from core.config import settings
 import xgboost as xgb
 import redis
 from sqlalchemy import create_engine
@@ -22,12 +23,12 @@ from security.exceptions import SentinelSecurityException
 logger = logging.getLogger(__name__)
 
 # 1. Configuration
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./sentinel.db")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-DB_POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "20"))
-DB_MAX_OVERFLOW = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
-IDEMPOTENCY_TTL = int(os.environ.get("IDEMPOTENCY_TTL_SECONDS", "86400"))
-BEHAVIORAL_WINDOW = int(os.environ.get("BEHAVIORAL_WINDOW_SECONDS", "5"))
+DB_URL = settings.DATABASE_URL
+REDIS_URL = settings.REDIS_URL
+DB_POOL_SIZE = settings.DB_POOL_SIZE
+DB_MAX_OVERFLOW = settings.DB_MAX_OVERFLOW
+IDEMPOTENCY_TTL = settings.IDEMPOTENCY_TTL_SECONDS
+BEHAVIORAL_WINDOW = settings.BEHAVIORAL_WINDOW_SECONDS
 
 # 2. Database Engine
 engine_args = {}
@@ -62,7 +63,7 @@ class ModelWrapper:
         import mlflow
         import mlflow.xgboost
         
-        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+        mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
         try:
             # We fetch the latest version of the registered model
             model_uri = f"models:/{model_name}/latest"
@@ -81,8 +82,8 @@ class ModelWrapper:
         except Exception as e:
             logger.warning(f"Failed to load model from MLflow/manifest: {e}")
             
-        use_gpu = os.environ.get("USE_GPU", "false").lower() == "true"
-        xgb_nthread = os.environ.get("XGB_NTHREAD", "auto")
+        use_gpu = settings.USE_GPU
+        xgb_nthread = settings.XGB_NTHREAD
         
         if use_gpu and self.model is not None:
             try:
@@ -117,7 +118,7 @@ async def init_app_state():
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     
     # Init Kafka Producer
-    kafka_broker = os.environ.get("KAFKA_BROKER", "localhost:29092")
+    kafka_broker = settings.KAFKA_BROKER
     kafka_producer = AIOKafkaProducer(bootstrap_servers=kafka_broker)
     await kafka_producer.start()
     
@@ -131,7 +132,7 @@ async def init_app_state():
     from execution.adapters.mock_adapter import MockPaymentAdapter
     from execution.adapters.mcp_adapter import RazorpayMCPAdapter
     
-    execution_mode = os.environ.get("EXECUTION_MODE", "mock").lower()
+    execution_mode = settings.EXECUTION_MODE.lower()
     if execution_mode == "mcp":
         provider = RazorpayMCPAdapter()
     elif execution_mode == "dry_run":

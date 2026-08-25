@@ -15,11 +15,12 @@ import mlflow
 
 from ml.train import run_training_pipeline
 from db.models import AuditRecord
+from core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./sentinel.db")
+DB_URL = settings.DATABASE_URL
 
 def fetch_fresh_data_and_label() -> pd.DataFrame:
     """
@@ -66,7 +67,7 @@ def fetch_fresh_data_and_label() -> pd.DataFrame:
 def run_mlops_pipeline():
     logger.info("=== STARTING MLOPS RETRAINING PIPELINE ===")
     
-    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
     
     # 1. Data Ingestion & Labeling
     logger.info("[Step 1] Ingesting and Labeling recent Audit data...")

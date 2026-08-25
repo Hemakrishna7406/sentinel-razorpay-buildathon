@@ -6,6 +6,10 @@ from typing import Any, Iterable
 
 
 CHAIN_FIELDS = (
+    # 'timestamp' IS included so the hash covers the full canonical field set.
+    # However, audit_consumer.py never puts 'timestamp' in record_dict
+    # (it is a DB-generated column), so it always hashes as None.
+    # verify_audit_chain must respect this by pinning timestamp=None.
     "intent_id", "timestamp", "agent_id", "action_type", "amount", "currency",
     "recipient", "model_risk_score", "behavioral_risk_score", "semantic_risk_score",
     "fusion_disagreement", "decision", "decision_reason", "capability_jti",
@@ -27,7 +31,11 @@ def verify_audit_chain(records: Iterable[Any]) -> tuple[bool, int, list[int]]:
     invalid: list[int] = []
     for record in records:
         checked += 1
-        values = {field: getattr(record, field) for field in CHAIN_FIELDS}
+        values = {field: getattr(record, field, None) for field in CHAIN_FIELDS}
+        # 'timestamp' is a DB-generated column that was never included in record_dict
+        # at hash-computation time in audit_consumer.py (record_dict.get('timestamp')
+        # returns None). Pin it to None here to match the original contract.
+        values["timestamp"] = None
         if record.previous_hash != previous_hash or record.record_hash != audit_record_hash(values):
             invalid.append(record.id)
         previous_hash = record.record_hash

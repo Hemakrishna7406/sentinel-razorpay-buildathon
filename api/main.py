@@ -12,12 +12,25 @@ Phase 21 Observability:
 - Structured JSON logs via observability.logging
 - OTel traces on /evaluate (OTLP -> Jaeger, optional)
 - All observability is non-authoritative.
+
+Phase 22 Deployment Hardening:
+- /health/live  — Liveness probe: is the event loop responsive?
+- /health/ready — Readiness probe: are the required dependencies for
+                  accepting new authorization work available?
+  API readiness matrix:
+    ✓ Redis (required for idempotency + JTI)
+    ✓ Kafka producer (required to publish intents)
+    ✓ DB (required for audit trail — soft-fail logged, not blocking)
+  Kafka and Redis outage → 503 Not Ready
+  DB outage            → logged, not blocking (worker handles audit)
+- /health/dependencies — Diagnostic panel (always 200, never drives routing)
 """
 
 import json
 import logging
 import os
 import time
+from core.config import settings
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List
 
@@ -178,7 +191,7 @@ async def evaluate_intent_sync(
             )
 
         from api.dependencies import kafka_producer, redis_client
-        KAFKA_INBOUND_TOPIC = os.environ.get("KAFKA_INBOUND_TOPIC", "intents.inbound")
+        KAFKA_INBOUND_TOPIC = settings.KAFKA_INBOUND_TOPIC
         payload = {
             "intent": intent.model_dump(),
             "context": intent.context,
@@ -312,7 +325,7 @@ async def evaluate_intent_async(
         )
         
     from api.dependencies import kafka_producer
-    KAFKA_INBOUND_TOPIC = os.environ.get("KAFKA_INBOUND_TOPIC", "intents.inbound")
+    KAFKA_INBOUND_TOPIC = settings.KAFKA_INBOUND_TOPIC
     payload = {
         "intent": intent.model_dump(),
         "context": intent.context,
@@ -692,88 +705,158 @@ async def prometheus_metrics():
         return Response(content="", media_type="text/plain")
 
 
-@app.get("/health/live")
+@app.get("/health/live", tags=["health"])
 def health_live():
-    """Liveness: Is the process alive?"""
-    return {"status": "ok"}
+    """
+    Liveness probe: Is this process alive and the event loop responsive?
+    Returns 200 unconditionally as long as this handler executes.
+    Kubernetes/container restarts based on this — never fail-close here.
+    """
+    return {"status": "ok", "process": "alive"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready", tags=["health"])
 async def health_ready():
     """
-    Readiness: Can this instance safely process authorization?
-    Returns 503 if Redis or Postgres are unreachable.
-    INVARIANT: This check never alters fail-closed behavior.
+    Readiness probe: Can this API instance safely accept new authorization work?
+
+    Phase 22 dependency matrix for API readiness:
+      Redis  — REQUIRED  (idempotency, JTI replay protection)
+      Kafka  — REQUIRED  (intent publishing to worker)
+      DB     — MONITORED (soft-fail: audit consumer handles writes separately)
+
+    Returns 503 if any REQUIRED dependency is unavailable.
+    INVARIANT: This check never alters fail-closed authorization behavior.
     """
-    from api.dependencies import redis_client, engine
-    errors = {}
+    from api.dependencies import redis_client, kafka_producer, engine
+
+    required_errors: dict = {}
+    warnings: dict = {}
+    startup_incomplete = False
+
+    # Guard: if app hasn't fully initialized yet (e.g. startup still in progress)
+    if redis_client is None:
+        startup_incomplete = True
+        required_errors["redis"] = "not initialized — startup incomplete"
+    else:
+        try:
+            await redis_client.ping()
+        except Exception as e:
+            required_errors["redis"] = str(e)
+
+    if kafka_producer is None:
+        startup_incomplete = True
+        required_errors["kafka"] = "not initialized — startup incomplete"
+    else:
+        try:
+            # AIOKafkaProducer has a _sender task we can probe; check it's not closed.
+            if not kafka_producer._closed:
+                pass  # producer is alive
+            else:
+                required_errors["kafka"] = "producer is closed"
+        except Exception as e:
+            required_errors["kafka"] = str(e)
+
+    # DB is monitored but not required for API readiness (audit consumer writes independently)
     try:
-        await redis_client.ping()
+        if engine:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
     except Exception as e:
-        errors["redis"] = str(e)
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception as e:
-        errors["postgres"] = str(e)
+        warnings["postgres"] = str(e)
+        logger.warning("DB unavailable during readiness check — audit consumer will reconcile",
+                       error=str(e))
 
-    if errors:
-        raise HTTPException(status_code=503, detail={"status": "not_ready", "errors": errors})
-    return {"status": "ready"}
+    if required_errors:
+        detail = {
+            "status": "not_ready",
+            "startup_incomplete": startup_incomplete,
+            "required_dependencies_failed": required_errors,
+        }
+        if warnings:
+            detail["warnings"] = warnings
+        raise HTTPException(status_code=503, detail=detail)
+
+    response = {"status": "ready"}
+    if warnings:
+        response["warnings"] = warnings
+    return response
 
 
-@app.get("/health/dependencies")
+@app.get("/health/dependencies", tags=["health"])
 async def health_dependencies():
     """
-    Detailed dependency health check.
-    Returns 200 even when individual dependencies are degraded.
-    Only /health/ready drives routing decisions.
+    Diagnostic dependency panel.
+    Always returns 200 — even when individual components are degraded.
+    NEVER drives routing or authorization decisions.
+    Use for operator dashboards and alerting only.
+
+    Phase 22 dependency matrix (API):
+      Redis    — required for idempotency + JTI
+      Kafka    — required for intent publishing
+      Postgres — monitored (soft-fail; audit consumer handles independently)
+      ML model — monitored (ESCALATE if absent)
     """
-    from api.dependencies import redis_client, engine, global_model
-    result = {}
+    from api.dependencies import redis_client, kafka_producer, engine, global_model
+    result: dict = {}
 
     # Redis
     try:
         t = time.perf_counter()
         await redis_client.ping()
-        result["redis"] = {"status": "healthy", "latency_ms": round((time.perf_counter() - t) * 1000, 2)}
+        result["redis"] = {
+            "status": "healthy",
+            "latency_ms": round((time.perf_counter() - t) * 1000, 2),
+            "role": "required",
+        }
     except Exception as e:
-        result["redis"] = {"status": "unhealthy", "error": str(e)}
+        result["redis"] = {"status": "unhealthy", "error": str(e), "role": "required"}
+
+    # Kafka Producer
+    try:
+        if kafka_producer is None:
+            result["kafka"] = {"status": "not_initialized", "role": "required"}
+        elif kafka_producer._closed:
+            result["kafka"] = {"status": "closed", "role": "required"}
+        else:
+            result["kafka"] = {"status": "healthy", "role": "required"}
+    except Exception as e:
+        result["kafka"] = {"status": "unhealthy", "error": str(e), "role": "required"}
 
     # Postgres
     try:
         t = time.perf_counter()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        result["postgres"] = {"status": "healthy", "latency_ms": round((time.perf_counter() - t) * 1000, 2)}
+        result["postgres"] = {
+            "status": "healthy",
+            "latency_ms": round((time.perf_counter() - t) * 1000, 2),
+            "role": "monitored",
+        }
     except Exception as e:
-        result["postgres"] = {"status": "unhealthy", "error": str(e)}
+        result["postgres"] = {"status": "unhealthy", "error": str(e), "role": "monitored"}
 
-    # ML model
+    # ML Model
     if global_model and global_model.model is not None:
-        result["ml_model"] = {"status": "loaded", "version": "xgb-v3"}
+        result["ml_model"] = {"status": "loaded", "role": "monitored"}
     else:
-        result["ml_model"] = {"status": "not_loaded"}
+        result["ml_model"] = {
+            "status": "not_loaded",
+            "role": "monitored",
+            "note": "missing model → ESCALATE on all evaluations",
+        }
 
-    result["inference_backend"] = os.environ.get("INFERENCE_BACKEND", "cpu")
-
+    result["inference_backend"] = settings.INFERENCE_BACKEND
     return result
 
 
-# Keep legacy aliases for backward compat
-@app.get("/live")
+# Legacy aliases (backward compat)
+@app.get("/live", include_in_schema=False)
 def liveness_check():
     return {"status": "ok"}
 
 
-@app.get("/ready")
+@app.get("/ready", include_in_schema=False)
 async def readiness_check():
-    from api.dependencies import redis_client, engine
-    try:
-        await redis_client.ping()
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception as e:
-        logger.error("Readiness check failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Dependencies unavailable")
-    return {"status": "ready"}
+    """Legacy alias — delegates to /health/ready logic."""
+    return await health_ready()

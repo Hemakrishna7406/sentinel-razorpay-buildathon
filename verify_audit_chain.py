@@ -11,7 +11,12 @@ record_hash_N = SHA256(payload_N || record_hash_N-1).
 
 import sys
 import logging
-from db.database import SessionLocal
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from core.config import settings
+
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from db.models import AuditRecord
 from security.audit_chain import verify_audit_chain
 

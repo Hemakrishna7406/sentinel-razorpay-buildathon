@@ -18,13 +18,32 @@ Observability (Phase 21):
     Prometheus metrics via observability.metrics (scraped on METRICS_PORT)
     OTel traces via observability.tracing (OTLP -> Jaeger, optional)
     All observability is non-authoritative — failures never affect decisions.
+
+Phase 22 — Graceful Shutdown:
+    Signal handling is POSIX-first (SIGTERM + SIGINT) with a cross-platform
+    asyncio.Event fallback for Windows development environments.
+
+    Shutdown state machine:
+        RUNNING
+          ↓ SIGTERM / SIGINT
+        DRAINING  — stop consuming new messages
+          ↓ wait for in-flight tasks
+        CLASSIFY  — per task:
+          terminal + decision published + Redis reply written  → COMMIT offset
+          uncertain / incomplete                               → DO NOT COMMIT → Kafka replay
+        STOP      — close producer, consumer, Redis
+
+    Invariant: Graceful shutdown never converts uncertainty into authorization.
 """
 
 import asyncio
 import json
 import os
+import platform
+import signal
 import time
 import threading
+from core.config import settings
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition, OffsetAndMetadata
 import redis.asyncio as redis
@@ -45,15 +64,15 @@ from observability.tracing import get_tracer, inject_trace_context, extract_trac
 logger = get_logger(__name__)
 tracer = get_tracer("sentinel.worker")
 
-KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:29092")
-INBOUND_TOPIC = os.environ.get("KAFKA_INBOUND_TOPIC", "intents.inbound")
-EVALUATED_TOPIC = os.environ.get("KAFKA_EVALUATED_TOPIC", "intents.evaluated")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-METRICS_PORT = int(os.environ.get("METRICS_PORT", "8001"))
+KAFKA_BROKER = settings.KAFKA_BROKER
+INBOUND_TOPIC = settings.KAFKA_INBOUND_TOPIC
+EVALUATED_TOPIC = settings.KAFKA_EVALUATED_TOPIC
+REDIS_URL = settings.REDIS_URL
+METRICS_PORT = settings.METRICS_PORT
 
-INFERENCE_BACKEND = os.environ.get("INFERENCE_BACKEND", "cpu").lower()
-GPU_BATCH_SIZE = int(os.environ.get("GPU_BATCH_SIZE", "16"))
-GPU_BATCH_TIMEOUT_MS = int(os.environ.get("GPU_BATCH_TIMEOUT_MS", "5"))
+INFERENCE_BACKEND = settings.INFERENCE_BACKEND.lower()
+GPU_BATCH_SIZE = settings.GPU_BATCH_SIZE
+GPU_BATCH_TIMEOUT_MS = settings.GPU_BATCH_TIMEOUT_MS
 
 
 def _start_metrics_server() -> None:
@@ -66,11 +85,66 @@ def _start_metrics_server() -> None:
         logger.warning("Metrics server failed to start — authorization unaffected", error=str(e))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Shutdown coordination
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Cross-platform shutdown event.
+# POSIX: set by SIGTERM/SIGINT handlers registered in main().
+# Windows: set by threading.Event via KeyboardInterrupt in __main__ block.
+_shutdown_event: asyncio.Event | None = None
+
+
+def _get_shutdown_event() -> asyncio.Event:
+    """Return the global shutdown event, creating it if needed (tests may call this)."""
+    global _shutdown_event
+    if _shutdown_event is None:
+        _shutdown_event = asyncio.Event()
+    return _shutdown_event
+
+
+def _register_signals(loop: asyncio.AbstractEventLoop, shutdown_event: asyncio.Event) -> None:
+    """
+    Register signal handlers.
+    On POSIX (Linux/macOS): use loop.add_signal_handler for SIGTERM and SIGINT.
+    On Windows: SIGTERM is not a real signal; asyncio.add_signal_handler is unavailable.
+      We rely on KeyboardInterrupt from the __main__ block to set the event instead.
+    """
+    if platform.system() != "Windows":
+        # Production: Linux container — POSIX-first
+        loop.add_signal_handler(
+            signal.SIGTERM,
+            lambda: (
+                logger.info("SIGTERM received — initiating graceful drain"),
+                shutdown_event.set()
+            )
+        )
+        loop.add_signal_handler(
+            signal.SIGINT,
+            lambda: (
+                logger.info("SIGINT received — initiating graceful drain"),
+                shutdown_event.set()
+            )
+        )
+        logger.info("Registered POSIX signal handlers (SIGTERM, SIGINT)")
+    else:
+        # Development: Windows — signals not fully supported by asyncio
+        logger.warning(
+            "Windows detected: SIGTERM not available via asyncio. "
+            "Use Ctrl+C (SIGINT) or set the shutdown event programmatically."
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Offset tracker (manual contiguous commit — Phase 20)
+# ─────────────────────────────────────────────────────────────────────────────
+
 class OffsetTracker:
     def __init__(self, consumer):
         self.consumer = consumer
         self.in_flight = {}
         self.max_seen = {}
+        self.failed = {}
         self.lock = asyncio.Lock()
 
     async def track_start(self, tp, offset):
@@ -78,18 +152,42 @@ class OffsetTracker:
             if tp not in self.in_flight:
                 self.in_flight[tp] = set()
                 self.max_seen[tp] = -1
+                self.failed[tp] = set()
             self.in_flight[tp].add(offset)
             self.max_seen[tp] = max(self.max_seen[tp], offset)
 
+    async def mark_failed(self, tp, offset):
+        """Mark an offset as failed. It will never be committed, and will block later commits."""
+        async with self.lock:
+            self.in_flight.get(tp, set()).discard(offset)
+            if tp not in self.failed:
+                self.failed[tp] = set()
+            self.failed[tp].add(offset)
+
     async def mark_done_and_commit(self, tp, offset):
+        """Commit eligible contiguous offsets.
+
+        Phase 22 invariant: the caller is responsible for determining
+        whether the offset is commit-eligible BEFORE calling this method.
+        This method commits only contiguously-safe offsets, never
+        arbitrarily advancing past in-flight or failed work.
+        """
         async with self.lock:
             if offset in self.in_flight.get(tp, set()):
                 self.in_flight[tp].remove(offset)
 
-            if not self.in_flight.get(tp):
+            # The highest safe offset is constrained by both in-flight and failed messages.
+            in_flight_min = min(self.in_flight[tp]) if self.in_flight.get(tp) else float('inf')
+            failed_min = min(self.failed.get(tp, set())) if self.failed.get(tp, set()) else float('inf')
+            
+            lowest_blocking = min(in_flight_min, failed_min)
+
+            if lowest_blocking == float('inf'):
+                # Nothing in flight and nothing failed
                 safe_offset = self.max_seen[tp]
             else:
-                safe_offset = min(self.in_flight[tp]) - 1
+                # Can only safely commit up to the message just before the lowest blocking one
+                safe_offset = lowest_blocking - 1
 
             if safe_offset >= 0:
                 await self.consumer.commit({
@@ -171,8 +269,8 @@ class BatchInferenceQueue:
 async def main():
     logger.info("Starting Evaluator Worker",
                 inference_backend=INFERENCE_BACKEND,
-                max_concurrent_tasks=os.environ.get("MAX_CONCURRENT_TASKS", "2"),
-                xgb_nthread=os.environ.get("XGB_NTHREAD", "4"))
+                max_concurrent_tasks=str(settings.MAX_CONCURRENT_TASKS),
+                xgb_nthread=settings.XGB_NTHREAD)
 
     # Start metrics scrape server in a background thread (non-blocking)
     threading.Thread(target=_start_metrics_server, daemon=True).start()
@@ -211,7 +309,7 @@ async def main():
     await consumer.start()
     await producer.start()
 
-    MAX_CONCURRENT_TASKS = int(os.environ.get("MAX_CONCURRENT_TASKS", "2"))
+    MAX_CONCURRENT_TASKS = settings.MAX_CONCURRENT_TASKS
     try:
         WORKER_CAPACITY.set(MAX_CONCURRENT_TASKS)
     except Exception:
@@ -241,6 +339,9 @@ async def main():
         agent_id = "unknown"
         decision_value = "ESCALATE"
         reason = "DEPENDENCY_FAILURE"
+        # commit_eligible starts False; set True only after both Kafka publish
+        # and Redis reply succeed (domain-state-driven commit — Phase 22).
+        commit_eligible = False
 
         try:
             # Record queue wait time
@@ -420,6 +521,14 @@ async def main():
                            model_risk=assessment.fusion.final_risk,
                            latency_ms=result["latency_ms"])
 
+            # ── Domain-state-driven offset commit ───────────────────────────
+            # An offset is commit-eligible ONLY when:
+            #   1. The evaluation produced a terminal decision, AND
+            #   2. The decision was successfully published to Kafka, AND
+            #   3. The Redis reply was written.
+            # Any failure before step 3 leaves the offset uncommitted so Kafka
+            # replays the message on restart (idempotent recovery).
+
             await producer.send_and_wait(
                 EVALUATED_TOPIC,
                 key=agent_id.encode('utf-8'),
@@ -429,6 +538,9 @@ async def main():
             reply_key = f"reply:{intent.intent_id}"
             await redis_client.xadd(reply_key, {"data": json.dumps(result)}, maxlen=10)
             await redis_client.expire(reply_key, 30)
+            
+            # Successfully reached the end of processing
+            commit_eligible = True
 
         except Exception as e:
             logger.error("Error processing message",
@@ -445,10 +557,35 @@ async def main():
                 WORKER_ACTIVE_TASKS.dec()
             except Exception:
                 pass
-            await tracker.mark_done_and_commit(tp, offset)
+            if commit_eligible:
+                await tracker.mark_done_and_commit(tp, offset)
+            else:
+                # Mark as failed to prevent advancing past this offset. Kafka will redeliver.
+                await tracker.mark_failed(tp, offset)
+                logger.warning(
+                    "Offset NOT committed — message will be redelivered by Kafka",
+                    intent_id=intent_id,
+                    offset=offset,
+                )
+
+    # ── Main consume loop with graceful drain ───────────────────────────────
+    global _shutdown_event
+    _shutdown_event = asyncio.Event()
+    shutdown_event = _shutdown_event
+
+    loop = asyncio.get_running_loop()
+    _register_signals(loop, shutdown_event)
 
     try:
         async for msg in consumer:
+            # DRAINING: stop accepting new messages when shutdown is signalled
+            if shutdown_event.is_set():
+                logger.info(
+                    "Shutdown signalled — stopping consumption, draining in-flight tasks",
+                    in_flight_count=len(tasks),
+                )
+                break
+
             await semaphore.acquire()
             task = asyncio.create_task(process_message(msg))
             tasks.add(task)
@@ -458,11 +595,46 @@ async def main():
                 semaphore.release()
 
             task.add_done_callback(on_done)
+
+    except asyncio.CancelledError:
+        logger.info("Consumer loop cancelled — initiating drain")
+
     finally:
+        # ── Drain: wait for all in-flight tasks to complete ──────────────────
+        # Domain-state-driven commits happen inside each task's finally block.
+        # Tasks that fail before publishing will NOT commit their offset.
+        if tasks:
+            logger.info("Draining in-flight tasks before shutdown", count=len(tasks))
+            drain_timeout = 30.0  # seconds before forcing shutdown
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=drain_timeout,
+                )
+                logger.info("All in-flight tasks drained successfully")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Drain timeout exceeded — some tasks may not have committed offsets",
+                    timeout_s=drain_timeout,
+                )
+                # Cancel remaining tasks; their offsets remain uncommitted for Kafka replay
+                for t in list(tasks):
+                    t.cancel()
+
+        # ── Close connections ──────────────────────────────────────────────
+        logger.info("Shutting down worker connections")
         await consumer.stop()
         await producer.stop()
         await redis_client.aclose()
+        logger.info("Evaluator Worker stopped cleanly")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Windows fallback: Ctrl+C triggers KeyboardInterrupt before asyncio can handle it.
+        # The shutdown event is set inside the loop; asyncio.run() cleans up gracefully.
+        if _shutdown_event is not None:
+            _shutdown_event.set()
+

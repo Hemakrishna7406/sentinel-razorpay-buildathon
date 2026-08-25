@@ -44,7 +44,12 @@ class AuditWriter:
             decision_reason=reason,
             capability_jti=token_payload.jti if token_payload else None
         )
+        # 'timestamp' is a DB-generated column and must NOT be part of the hash.
+        # audit_consumer.py never includes it in record_dict, so hash(timestamp)=None.
+        # We pop it here before hashing and restore it after for AuditRecord construction.
+        ts = values.pop("timestamp")
         values["record_hash"] = audit_record_hash(values)
+        values["timestamp"] = ts
         record = AuditRecord(**values)
         
         self.session.add(record)

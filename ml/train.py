@@ -164,7 +164,8 @@ def run_training_pipeline(
     """End-to-end training pipeline for a given ablation mode."""
     
     import os
-    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    from core.config import settings
+    mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
     mlflow.set_experiment("Sentinel_Ablation_Study")
     
     train_df, val_df, test_df = split_data(df)

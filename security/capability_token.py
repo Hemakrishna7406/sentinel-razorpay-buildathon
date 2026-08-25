@@ -56,20 +56,20 @@ class TokenInvalidException(CapabilityTokenException):
     pass
 
 
-import os
+from core.config import settings
 
 class TokenManager:
     """Issues and verifies capability tokens."""
     
     def __init__(self, secret: Optional[bytes] = None):
         if secret is None:
-            key_str = os.environ.get("CAPABILITY_SIGNING_KEY")
+            key_str = settings.CAPABILITY_SIGNING_KEY
             if not key_str:
                 raise ValueError("Startup failure: CAPABILITY_SIGNING_KEY is missing or empty.")
             if len(key_str) < 32:
                 raise ValueError("Startup failure: CAPABILITY_SIGNING_KEY is too weak (must be >= 32 characters).")
             # Protect against known test keys in production
-            if key_str == "sentinel-local-dev-secret-do-not-use-in-prod" and os.environ.get("ENVIRONMENT", "production") == "production":
+            if key_str == "sentinel-local-dev-secret-do-not-use-in-prod" and settings.ENVIRONMENT == "production":
                 raise ValueError("Startup failure: Cannot use development signing key in production environment.")
             self._secret = key_str.encode("utf-8")
         else:
