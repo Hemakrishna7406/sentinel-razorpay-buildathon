@@ -14,6 +14,10 @@ import pandas as pd
 import xgboost as xgb
 import mlflow
 import mlflow.xgboost
+
+# Disable autologging to prevent duplicate metric insert errors in SQLite backend
+mlflow.xgboost.autolog(disable=True)
+
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 from ml.features import build_feature_dataframe, get_feature_names
@@ -174,7 +178,7 @@ def run_training_pipeline(
     
     dtrain, dval, dtest, feature_cols = prepare_matrices(train_df, val_df, test_df, ablation_mode)
     
-    mlflow.xgboost.autolog()
+    # mlflow.xgboost.autolog()  # Disabled to fix SQLite UNIQUE constraint
     
     with mlflow.start_run(run_name=f"mode_{ablation_mode}"):
         mlflow.log_param("ablation_mode", ablation_mode)

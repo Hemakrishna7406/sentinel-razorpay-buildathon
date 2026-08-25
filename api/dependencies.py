@@ -80,6 +80,23 @@ class ModelWrapper:
             
         except Exception as e:
             logger.warning(f"Failed to load model from MLflow/manifest: {e}")
+            
+        use_gpu = os.environ.get("USE_GPU", "false").lower() == "true"
+        xgb_nthread = os.environ.get("XGB_NTHREAD", "auto")
+        
+        if use_gpu and self.model is not None:
+            try:
+                self.model.set_param({"device": "cuda"})
+                logger.info("Configuring XGBoost model for GPU execution (device='cuda').")
+            except Exception as e:
+                logger.warning(f"Failed to configure GPU execution: {e}")
+                
+        if xgb_nthread != "auto" and self.model is not None:
+            try:
+                self.model.set_param({"nthread": int(xgb_nthread)})
+                logger.info(f"Configuring XGBoost model with nthread={xgb_nthread}")
+            except Exception as e:
+                logger.warning(f"Failed to configure XGBoost nthread: {e}")
 
 
 # 4. Global State (Initialized in lifespan)

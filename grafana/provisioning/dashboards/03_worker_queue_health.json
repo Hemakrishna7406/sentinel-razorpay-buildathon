@@ -1,0 +1,152 @@
+{
+  "title": "Sentinel - Worker & Queue Health",
+  "uid": "sentinel-worker",
+  "tags": [
+    "sentinel"
+  ],
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "gauge",
+      "title": "Worker Utilization",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel:worker_utilization:5m",
+          "legendFormat": "Utilization"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active Tasks",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel_worker_active_tasks",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Capacity (MAX_CONCURRENT_TASKS)",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel_worker_capacity",
+          "legendFormat": "Capacity"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Kafka Consumer Lag",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "sentinel_kafka_lag",
+          "legendFormat": "{{topic}}[{{partition}}]"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queue Wait p99 (ms)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(sentinel_worker_queue_wait_seconds_bucket[5m])) * 1000",
+          "legendFormat": "Queue Wait p99"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Dependency Errors/s",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "expr": "rate(sentinel_redis_errors_total[5m])",
+          "legendFormat": "Redis"
+        },
+        {
+          "expr": "rate(sentinel_postgres_errors_total[5m])",
+          "legendFormat": "Postgres"
+        },
+        {
+          "expr": "rate(sentinel_kafka_errors_total[5m])",
+          "legendFormat": "Kafka"
+        },
+        {
+          "expr": "rate(sentinel_ml_errors_total[5m])",
+          "legendFormat": "ML"
+        }
+      ]
+    }
+  ]
+}

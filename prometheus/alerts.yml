@@ -1,0 +1,88 @@
+groups:
+  - name: sentinel.security
+    rules:
+      # CRITICAL — Security Invariants. These must ALWAYS be 0.
+      - alert: SentinelUnauthorizedExecution
+        expr: sentinel_security_unauthorized_execution_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SENTINEL SECURITY BREACH — Unauthorized execution detected"
+          description: "sentinel_security_unauthorized_execution_total = {{ $value }}. A financial execution occurred without a valid capability token. Immediate investigation required."
+
+      - alert: SentinelDuplicateExecution
+        expr: sentinel_security_duplicate_execution_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SENTINEL SECURITY BREACH — Duplicate financial execution detected"
+          description: "sentinel_security_duplicate_execution_total = {{ $value }}. A duplicate financial execution has been detected."
+
+      - alert: SentinelUnsafeAllow
+        expr: sentinel_security_unsafe_allow_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SENTINEL SECURITY BREACH — ALLOW issued with unavailable dependency"
+          description: "sentinel_security_unsafe_allow_total = {{ $value }}. An ALLOW decision was issued when a critical dependency was unavailable."
+
+      - alert: SentinelUnknownExecutions
+        expr: sentinel_security_reconciliation_pending > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sentinel has unreconciled UNKNOWN executions"
+          description: "{{ $value }} idempotency keys are in PUBLISH_UNKNOWN or UNKNOWN state and need reconciliation."
+
+  - name: sentinel.infrastructure
+    rules:
+      - alert: SentinelRedisUnavailable
+        expr: rate(sentinel_redis_errors_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sentinel Redis is unavailable"
+          description: "Redis error rate > 0 for 1m. Sentinel is failing closed on idempotency checks."
+
+      - alert: SentinelPostgresUnavailable
+        expr: rate(sentinel_postgres_errors_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sentinel Postgres is unavailable"
+          description: "Postgres error rate > 0 for 1m. Audit writes may be failing."
+
+      - alert: SentinelKafkaLagGrowing
+        expr: delta(sentinel_kafka_lag[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sentinel Kafka consumer lag is growing"
+          description: "Kafka lag increased by {{ $value }} messages in 5 minutes. Workers may be saturated."
+
+  - name: sentinel.performance
+    rules:
+      - alert: SentinelP99LatencyElevated
+        expr: histogram_quantile(0.99, rate(sentinel_authorization_latency_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sentinel p99 authorization latency above 1s"
+          description: "p99 latency = {{ $value | humanizeDuration }}. Phase 20 baseline: ~350ms."
+
+      - alert: SentinelMLInferenceElevated
+        expr: histogram_quantile(0.99, rate(sentinel_ml_inference_latency_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sentinel ML inference p99 > 100ms"
+          description: "XGBoost inference p99 = {{ $value | humanizeDuration }}. Phase 20 baseline: ~0.6ms."

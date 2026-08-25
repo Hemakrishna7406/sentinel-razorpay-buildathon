@@ -1,5 +1,6 @@
 api
 execution
 ml
+observability
 security
 worker

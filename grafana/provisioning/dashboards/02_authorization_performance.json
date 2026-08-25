@@ -1,0 +1,178 @@
+{
+  "title": "Sentinel - Authorization Performance",
+  "uid": "sentinel-perf",
+  "tags": [
+    "sentinel"
+  ],
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "p50 Latency (ms)",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel:authorization_latency_p50:5m * 1000",
+          "legendFormat": "p50"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "p95 Latency (ms)",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel:authorization_latency_p95:5m * 1000",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 400
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "p99 Latency (ms)",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel:authorization_latency_p99:5m * 1000",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "XGBoost p99 (ms)",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sentinel:ml_inference_p99:5m * 1000",
+          "legendFormat": "XGBoost p99"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Authorization Latency Percentiles",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "sentinel:authorization_latency_p50:5m * 1000",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "sentinel:authorization_latency_p95:5m * 1000",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "sentinel:authorization_latency_p99:5m * 1000",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Component Latency Breakdown (worker p99)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(sentinel_worker_queue_wait_seconds_bucket[5m])) * 1000",
+          "legendFormat": "Queue Wait p99"
+        },
+        {
+          "expr": "sentinel:ml_inference_p99:5m * 1000",
+          "legendFormat": "XGBoost p99"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(sentinel_redis_latency_seconds_bucket[5m])) * 1000",
+          "legendFormat": "Redis p99"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(sentinel_postgres_latency_seconds_bucket[5m])) * 1000",
+          "legendFormat": "Postgres p99"
+        }
+      ]
+    }
+  ]
+}

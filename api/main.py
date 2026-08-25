@@ -5,6 +5,13 @@ Exposes the core evaluation endpoint, NL policy management,
 SHAP explanations, batch simulation, and dashboard.
 Implements Observe (dry-run) and Govern (active blocking) modes.
 Ensures fail-closed behavior on unhandled exceptions.
+
+Phase 21 Observability:
+- GET /metrics  — Prometheus text exposition
+- GET /health/live, /health/ready, /health/dependencies
+- Structured JSON logs via observability.logging
+- OTel traces on /evaluate (OTLP -> Jaeger, optional)
+- All observability is non-authoritative.
 """
 
 import json
@@ -15,7 +22,7 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List
 
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -39,9 +46,18 @@ from api.dependencies import (
 from security.exceptions import SentinelSecurityException
 from security.capability_token import IntentContext
 from ml.features import extract_features
+from observability.logging import get_logger
+from observability.metrics import (
+    INTENTS_TOTAL, AUTHORIZATION_LATENCY,
+    REDIS_LATENCY, REDIS_ERRORS_TOTAL,
+    KAFKA_PUBLISH_LATENCY, KAFKA_ERRORS_TOTAL,
+    record_decision,
+)
+from observability.tracing import get_tracer, inject_trace_context
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+tracer = get_tracer("sentinel.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,6 +84,7 @@ class EvaluationResponse(BaseModel):
     capability_token: Optional[str] = None
     executed_tx_id: Optional[str] = None
     latency_ms: int
+    timings: Optional[Dict[str, float]] = None
 
 class ExecuteRequest(BaseModel):
     intent_id: str
@@ -121,6 +138,14 @@ async def evaluate_intent_sync(
     Fast Path Synchronous Evaluation.
     Publishes to Kafka and blocks on Redis Streams for the decision.
     """
+    t_start = time.perf_counter()
+
+    # Observability — non-authoritative, never raises into the auth path
+    try:
+        INTENTS_TOTAL.inc()
+    except Exception:
+        pass
+
     idem_engine = get_idempotency_engine()
     intent_context = IntentContext(
         intent_id=intent.intent_id,
@@ -130,71 +155,133 @@ async def evaluate_intent_sync(
         currency=intent.currency,
         recipient=intent.recipient
     )
-    
-    existing_tx = await idem_engine.check_and_record(idempotency_key, intent_context, intent.agent_id)
-    if existing_tx:
-        return EvaluationResponse(
-            intent_id=intent.intent_id,
-                decision="ALLOW",
-                reason="Idempotent replay of completed execution.",
-            capability_token=None,
-            executed_tx_id=existing_tx,
-            latency_ms=0
-        )
-        
-    from api.dependencies import kafka_producer, redis_client
-    KAFKA_INBOUND_TOPIC = os.environ.get("KAFKA_INBOUND_TOPIC", "intents.inbound")
-    payload = {
-        "intent": intent.model_dump(),
-        "context": intent.context,
-        "agent_id": intent.agent_id,
-        "mode": mode,
-        "idempotency_key": idempotency_key
-    }
-    
-    try:
-        await kafka_producer.send_and_wait(
-            KAFKA_INBOUND_TOPIC,
-            key=intent.agent_id.encode('utf-8'),
-            value=json.dumps(payload).encode('utf-8')
-        )
-        await idem_engine.mark_published(idempotency_key)
-    except Exception:
-        # Kafka acknowledgement may be uncertain; retain the reservation to prevent
-        # duplicate publication and force explicit reconciliation.
-        await idem_engine.mark_state(idempotency_key, "PUBLISH_UNKNOWN")
-        raise SentinelSecurityException("Intent publication unavailable or uncertain. Failing closed.")
-    
-    # Wait on Redis Stream for Reply
-    reply_key = f"reply:{intent.intent_id}"
-    try:
-        response = await redis_client.xread({reply_key: '0'}, count=1, block=5000)
-        
-        if not response:
-            raise HTTPException(status_code=504, detail="Timeout waiting for evaluation")
-            
-        stream_name, messages = response[0]
-        message_id, message_data = messages[0]
-        
-        raw_result = message_data.get("data", message_data.get(b"data"))
-        if raw_result is None:
-            raise SentinelSecurityException("Malformed evaluator reply. Failing closed.")
-        if isinstance(raw_result, bytes):
-            raw_result = raw_result.decode("utf-8")
-        result = json.loads(raw_result)
-        
-        return EvaluationResponse(
-            intent_id=result["intent_id"],
-            decision=result["decision"],
-            reason=result.get("decision_reason"),
-            capability_token=result.get("capability_token"),
-            executed_tx_id=None,
-            latency_ms=result.get("latency_ms", 0)
-        )
-        
-    except Exception as e:
-        logger.error(f"Error during synchronous evaluation: {e}")
-        raise
+
+    with tracer.start_as_current_span("sentinel.evaluate") as root_span:
+        with tracer.start_as_current_span("sentinel.idempotency.check"):
+            existing_tx = await idem_engine.check_and_record(idempotency_key, intent_context, intent.agent_id)
+        t_idem = time.perf_counter()
+
+        if existing_tx:
+            try:
+                record_decision("ALLOW", "IDEMPOTENCY_REPLAY")
+                AUTHORIZATION_LATENCY.observe(time.perf_counter() - t_start)
+            except Exception:
+                pass
+            return EvaluationResponse(
+                intent_id=intent.intent_id,
+                    decision="ALLOW",
+                    reason="Idempotent replay of completed execution.",
+                capability_token=None,
+                executed_tx_id=existing_tx,
+                latency_ms=0,
+                timings={"idem_ms": (t_idem - t_start)*1000}
+            )
+
+        from api.dependencies import kafka_producer, redis_client
+        KAFKA_INBOUND_TOPIC = os.environ.get("KAFKA_INBOUND_TOPIC", "intents.inbound")
+        payload = {
+            "intent": intent.model_dump(),
+            "context": intent.context,
+            "agent_id": intent.agent_id,
+            "mode": mode,
+            "idempotency_key": idempotency_key
+        }
+        # Inject OTel trace context for end-to-end tracing (non-authoritative)
+        try:
+            payload = inject_trace_context(payload)
+        except Exception:
+            pass
+
+        with tracer.start_as_current_span("sentinel.kafka.publish"):
+            t_kafka_start = time.perf_counter()
+            try:
+                await kafka_producer.send_and_wait(
+                    KAFKA_INBOUND_TOPIC,
+                    key=intent.agent_id.encode('utf-8'),
+                    value=json.dumps(payload).encode('utf-8')
+                )
+                await idem_engine.mark_published(idempotency_key)
+                try:
+                    KAFKA_PUBLISH_LATENCY.observe(time.perf_counter() - t_kafka_start)
+                except Exception:
+                    pass
+            except Exception:
+                try:
+                    KAFKA_ERRORS_TOTAL.labels(operation="publish").inc()
+                except Exception:
+                    pass
+                await idem_engine.mark_state(idempotency_key, "PUBLISH_UNKNOWN")
+                raise SentinelSecurityException("Intent publication unavailable or uncertain. Failing closed.")
+
+        t_kafka = time.perf_counter()
+
+        # Wait on Redis Stream for Reply
+        reply_key = f"reply:{intent.intent_id}"
+        with tracer.start_as_current_span("sentinel.redis.poll"):
+            try:
+                t_redis_start = time.perf_counter()
+                response = await redis_client.xread({reply_key: '0'}, count=1, block=5000)
+
+                if not response:
+                    raise HTTPException(status_code=504, detail="Timeout waiting for evaluation")
+
+                stream_name, messages = response[0]
+                message_id, message_data = messages[0]
+
+                raw_result = message_data.get("data", message_data.get(b"data"))
+                if raw_result is None:
+                    raise SentinelSecurityException("Malformed evaluator reply. Failing closed.")
+                if isinstance(raw_result, bytes):
+                    raw_result = raw_result.decode("utf-8")
+                result = json.loads(raw_result)
+
+                try:
+                    REDIS_LATENCY.labels(operation="xread_reply").observe(
+                        time.perf_counter() - t_redis_start
+                    )
+                except Exception:
+                    pass
+
+                t_redis = time.perf_counter()
+
+                worker_timings = result.get("timings", {})
+                timings = {
+                    "api_idem_ms": (t_idem - t_start)*1000,
+                    "api_kafka_ms": (t_kafka - t_idem)*1000,
+                    "api_wait_ms": (t_redis - t_kafka)*1000,
+                    "worker_queue_ms": worker_timings.get("queue_ms", 0),
+                    "worker_features_ms": worker_timings.get("features_ms", 0),
+                    "worker_xgb_ms": worker_timings.get("gpu_inference_ms", 0),
+                    "worker_policy_ms": worker_timings.get("policy_ms", 0),
+                    "total_ms": (t_redis - t_start)*1000
+                }
+
+                # Record decision + latency (non-authoritative)
+                try:
+                    record_decision(result["decision"], result.get("decision_reason", ""))
+                    AUTHORIZATION_LATENCY.observe(time.perf_counter() - t_start)
+                except Exception:
+                    pass
+
+                resp = EvaluationResponse(
+                    intent_id=result["intent_id"],
+                    decision=result["decision"],
+                    reason=result.get("decision_reason"),
+                    capability_token=result.get("capability_token"),
+                    executed_tx_id=None,
+                    latency_ms=result.get("latency_ms", 0),
+                    timings=timings
+                )
+                return resp
+
+            except Exception as e:
+                try:
+                    REDIS_ERRORS_TOTAL.labels(operation="xread_reply").inc()
+                except Exception:
+                    pass
+                logger.error("Error during synchronous evaluation",
+                             intent_id=intent.intent_id, error=str(e))
+                raise
 
 @app.post("/evaluate/async", status_code=202)
 async def evaluate_intent_async(
@@ -594,9 +681,90 @@ def verify_audit_log(db: Session = Depends(get_db)):
     valid, checked, invalid_ids = verify_audit_chain(records)
     return {"status": "PASS" if valid else "FAIL", "records_checked": checked, "invalid_record_ids": invalid_ids}
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus text exposition endpoint."""
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except Exception as e:
+        # If prometheus-client is not installed, return empty response
+        return Response(content="", media_type="text/plain")
+
+
+@app.get("/health/live")
+def health_live():
+    """Liveness: Is the process alive?"""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """
+    Readiness: Can this instance safely process authorization?
+    Returns 503 if Redis or Postgres are unreachable.
+    INVARIANT: This check never alters fail-closed behavior.
+    """
+    from api.dependencies import redis_client, engine
+    errors = {}
+    try:
+        await redis_client.ping()
+    except Exception as e:
+        errors["redis"] = str(e)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        errors["postgres"] = str(e)
+
+    if errors:
+        raise HTTPException(status_code=503, detail={"status": "not_ready", "errors": errors})
+    return {"status": "ready"}
+
+
+@app.get("/health/dependencies")
+async def health_dependencies():
+    """
+    Detailed dependency health check.
+    Returns 200 even when individual dependencies are degraded.
+    Only /health/ready drives routing decisions.
+    """
+    from api.dependencies import redis_client, engine, global_model
+    result = {}
+
+    # Redis
+    try:
+        t = time.perf_counter()
+        await redis_client.ping()
+        result["redis"] = {"status": "healthy", "latency_ms": round((time.perf_counter() - t) * 1000, 2)}
+    except Exception as e:
+        result["redis"] = {"status": "unhealthy", "error": str(e)}
+
+    # Postgres
+    try:
+        t = time.perf_counter()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        result["postgres"] = {"status": "healthy", "latency_ms": round((time.perf_counter() - t) * 1000, 2)}
+    except Exception as e:
+        result["postgres"] = {"status": "unhealthy", "error": str(e)}
+
+    # ML model
+    if global_model and global_model.model is not None:
+        result["ml_model"] = {"status": "loaded", "version": "xgb-v3"}
+    else:
+        result["ml_model"] = {"status": "not_loaded"}
+
+    result["inference_backend"] = os.environ.get("INFERENCE_BACKEND", "cpu")
+
+    return result
+
+
+# Keep legacy aliases for backward compat
 @app.get("/live")
 def liveness_check():
     return {"status": "ok"}
+
 
 @app.get("/ready")
 async def readiness_check():
@@ -606,6 +774,6 @@ async def readiness_check():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
+        logger.error("Readiness check failed", error=str(e))
         raise HTTPException(status_code=503, detail="Dependencies unavailable")
     return {"status": "ready"}
