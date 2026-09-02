@@ -51,6 +51,7 @@ def test_no_direct_mcp_path():
     allowed_files = [
         "mcp_adapter.py",
         "dependencies.py", # Where the dependency is wired
+        "dependencies_optimized.py", # Alternative wiring
         "test_mcp_gates.py", # Tests
         "test_mcp.py",
         "test_execution_gateway.py",

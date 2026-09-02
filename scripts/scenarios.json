@@ -1,0 +1,94 @@
+{
+  "normal": {
+    "name": "Normal Agent",
+    "description": "Routine transaction within behavioral baseline",
+    "icon": "🟢",
+    "intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 2500,
+      "currency": "INR",
+      "recipient": "merchant_abc123"
+    },
+    "expected_outcome": {
+      "decision": "ALLOW",
+      "behavioral_risk": 0.08,
+      "reason": "Within normal operating parameters"
+    }
+  },
+  "suspicious": {
+    "name": "Suspicious Agent",
+    "description": "High-value transaction requiring human review",
+    "icon": "🟡",
+    "intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 85000,
+      "currency": "INR",
+      "recipient": "merchant_xyz789"
+    },
+    "expected_outcome": {
+      "decision": "ESCALATE",
+      "behavioral_risk": 0.71,
+      "reason": "Amount exceeds 3σ from baseline"
+    }
+  },
+  "malicious": {
+    "name": "Malicious Agent",
+    "description": "Behavioral drift indicating compromise",
+    "icon": "🔴",
+    "intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 500000,
+      "currency": "INR",
+      "recipient": "unknown_recipient"
+    },
+    "expected_outcome": {
+      "decision": "CONTAIN",
+      "behavioral_risk": 0.94,
+      "reason": "Severe behavioral anomaly + policy violation"
+    }
+  },
+  "replay": {
+    "name": "Replay Attack",
+    "description": "Duplicate transaction blocked by idempotency",
+    "icon": "🔁",
+    "first_intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 2500,
+      "currency": "INR",
+      "recipient": "merchant_abc123"
+    },
+    "second_intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 2500,
+      "currency": "INR",
+      "recipient": "merchant_abc123"
+    },
+    "expected_outcome": {
+      "first": "ALLOW",
+      "second": "BLOCKED",
+      "reason": "Idempotency: transaction already completed"
+    }
+  },
+  "redis_failure": {
+    "name": "Redis Failure",
+    "description": "Infrastructure failure triggers fail-closed",
+    "icon": "💥",
+    "simulation": "redis_unavailable",
+    "intent": {
+      "agent_id": "checkout-agent-01",
+      "action_type": "payout",
+      "amount": 5000,
+      "currency": "INR",
+      "recipient": "merchant_test"
+    },
+    "expected_outcome": {
+      "decision": "ESCALATE",
+      "reason": "Fail-closed: Redis unavailable"
+    }
+  }
+}
