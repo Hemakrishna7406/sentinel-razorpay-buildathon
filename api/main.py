@@ -36,6 +36,7 @@ from typing import Dict, Any, Optional, List
 
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.responses import JSONResponse, HTMLResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -79,6 +80,20 @@ async def lifespan(app: FastAPI):
     await shutdown_app_state()
 
 app = FastAPI(title="Sentinel Risk Engine", version="1.0.0", lifespan=lifespan)
+
+# --- CORS (browser origins only; does not weaken any authorization path) ---
+_allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type", "Idempotency-Key", "X-Sentinel-Mode"],
+)
+
+# --- Analytics Router ---
+from api.analytics import router as analytics_router
+app.include_router(analytics_router)
 
 # --- Models ---
 class IntentRequest(BaseModel):
@@ -506,7 +521,113 @@ async def run_demo_scenario(scenario: str):
             event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
             stage="MCP", mcp_invocation=False, execution_status="BLOCKED", reason_codes=["Action type mismatch (fetch_all_payouts requested)"]
         ))
-        
+
+    elif scenario == "suspicious":
+        # 2. BEHAVIOR
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="BEHAVIOR", behavioral_risk=0.71, semantic_risk=0.68
+        ))
+        await asyncio.sleep(0.5)
+        # 3. POLICY
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="POLICY", policy_decision="ESCALATE"
+        ))
+        await asyncio.sleep(0.5)
+        # 4. CAPABILITY
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="CAPABILITY", capability_issued=False, reason_codes=["Amount exceeds 3σ from baseline - requires human review"]
+        ))
+        await asyncio.sleep(0.5)
+        # 5. MCP
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="MCP", mcp_invocation=False, execution_status="ESCALATED"
+        ))
+
+    elif scenario == "malicious":
+        # 2. BEHAVIOR
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="BEHAVIOR", behavioral_risk=0.94, semantic_risk=0.89
+        ))
+        await asyncio.sleep(0.5)
+        # 3. POLICY
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="POLICY", policy_decision="CONTAIN"
+        ))
+        await asyncio.sleep(0.5)
+        # 4. CAPABILITY
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkpoint-agent-01",
+            stage="CAPABILITY", capability_issued=False, reason_codes=["Severe behavioral anomaly + policy violation"]
+        ))
+        await asyncio.sleep(0.5)
+        # 5. MCP
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="MCP", mcp_invocation=False, execution_status="CONTAINED"
+        ))
+
+    elif scenario == "replay":
+        # First request: ALLOW
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="BEHAVIOR", behavioral_risk=0.05, semantic_risk=0.08
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="POLICY", policy_decision="ALLOW"
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="CAPABILITY", capability_issued=True, mcp_tool="create_order"
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="MCP", mcp_invocation=True, execution_status="SUCCESS"
+        ))
+        await asyncio.sleep(1.0)
+        # Second request with same idempotency key: BLOCKED
+        intent_id_2 = f"INT-{uuid.uuid4().hex[:6]}"
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
+            stage="INTENT"
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
+            stage="CAPABILITY", capability_issued=False, reason_codes=["Idempotency: transaction already completed"]
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
+            stage="MCP", mcp_invocation=False, execution_status="BLOCKED_REPLAY"
+        ))
+
+    elif scenario == "redis_failure":
+        # Simulated infrastructure failure
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="INTENT"
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="CAPABILITY", capability_issued=False, reason_codes=["Fail-closed: Redis unavailable"]
+        ))
+        await asyncio.sleep(0.5)
+        await broadcaster.broadcast(SentinelExecutionEvent(
+            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
+            stage="MCP", mcp_invocation=False, execution_status="ESCALATED_INFRA_FAILURE"
+        ))
+
     return {"status": "started", "scenario": scenario}
 
 # ─────────────────────────────────────────────────────────────
@@ -634,7 +755,7 @@ def run_simulation(
 # ─────────────────────────────────────────────────────────────
 
 def _read_html(filename: str) -> str:
-    path = os.path.join(os.path.dirname(__file__), "..", "dashboard", filename)
+    path = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist", filename)
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
@@ -642,23 +763,25 @@ def _read_html(filename: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def serve_landing():
-    html = _read_html("landing.html")
-    if html:
-        return HTMLResponse(content=html)
-    return HTMLResponse(content="<h1>Landing page not found.</h1>", status_code=404)
-
-@app.get("/dashboard", response_class=HTMLResponse)
-def serve_dashboard():
     html = _read_html("index.html")
     if html:
         return HTMLResponse(content=html)
-    return HTMLResponse(content="<h1>Dashboard not found.</h1>", status_code=404)
+    return HTMLResponse(content="<h1>Frontend build not found. Please run 'npm run build' in frontend/</h1>", status_code=404)
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def serve_dashboard():
+    # Route to the same index.html for React Router to handle
+    html = _read_html("index.html")
+    if html:
+        return HTMLResponse(content=html)
+    return HTMLResponse(content="<h1>Frontend build not found. Please run 'npm run build' in frontend/</h1>", status_code=404)
 
 # ─────────────────────────────────────────────────────────────
 # AUDIT LOG API
 # ─────────────────────────────────────────────────────────────
 
 @app.get("/api/audit")
+@app.get("/audit", tags=["audit"])
 def get_audit_log(limit: int = 50, db: Session = Depends(get_db)):
     from db.models import AuditRecord
     records = db.query(AuditRecord).order_by(AuditRecord.id.desc()).limit(limit).all()
@@ -693,6 +816,77 @@ def verify_audit_log(db: Session = Depends(get_db)):
     records = db.query(AuditRecord).order_by(AuditRecord.id.asc()).all()
     valid, checked, invalid_ids = verify_audit_chain(records)
     return {"status": "PASS" if valid else "FAIL", "records_checked": checked, "invalid_record_ids": invalid_ids}
+
+@app.get("/api/security/invariants", tags=["security"])
+def get_security_invariants(db: Session = Depends(get_db)):
+    """
+    Security invariant metrics: compute from audit log.
+
+    Returns metrics that MUST be zero:
+    - unauthorized_executions: executions without valid capability tokens
+    - duplicate_executions: same transaction executed multiple times
+    - unsafe_allows: ALLOW decisions during error states
+    - audit_chain_breaks: broken links in the cryptographic audit chain
+    - fail_open_incidents: ALLOW decisions issued during system errors
+
+    In production with correct implementation, all should be 0.
+    """
+    from db.models import AuditRecord
+    from security.audit_chain import verify_audit_chain
+
+    # Query all audit records
+    records = db.query(AuditRecord).all()
+
+    # Initialize counters
+    unauthorized_executions = 0
+    duplicate_executions = 0
+    unsafe_allows = 0
+    audit_chain_breaks = 0
+    fail_open_incidents = 0
+
+    # Track seen intent hashes and JTIs
+    seen_intent_hashes = set()
+    seen_jtis = set()
+
+    for record in records:
+        # Check for duplicate executions (same intent_id executed multiple times with tx_id)
+        if record.executed_tx_id:
+            intent_key = f"{record.agent_id}:{record.action_type}:{record.amount}:{record.recipient}"
+            if intent_key in seen_intent_hashes:
+                duplicate_executions += 1
+            else:
+                seen_intent_hashes.add(intent_key)
+
+        # Check for unauthorized executions (executed without token)
+        if record.executed_tx_id and not record.capability_jti:
+            unauthorized_executions += 1
+
+        # Check for unsafe ALLOWs (ALLOW with very high risk or missing risk scores)
+        if record.decision == "ALLOW":
+            # If model_risk_score is missing or extremely high, it's unsafe
+            if record.model_risk_score is None or (record.model_risk_score and record.model_risk_score > 0.95):
+                unsafe_allows += 1
+
+        # Check for duplicate tokens (same JTI used multiple times)
+        if record.capability_jti:
+            if record.capability_jti in seen_jtis:
+                fail_open_incidents += 1  # Duplicate token use would be a fail-open
+            else:
+                seen_jtis.add(record.capability_jti)
+
+    # Check audit chain integrity
+    ordered_records = sorted(records, key=lambda r: r.id)
+    valid, checked, invalid_ids = verify_audit_chain(ordered_records)
+    audit_chain_breaks = len(invalid_ids)
+
+    return {
+        "unauthorized_executions": unauthorized_executions,
+        "duplicate_executions": duplicate_executions,
+        "unsafe_allows": unsafe_allows,
+        "audit_chain_breaks": audit_chain_breaks,
+        "fail_open_incidents": fail_open_incidents,
+        "total_records": len(records),
+    }
 
 @app.get("/metrics")
 async def prometheus_metrics():

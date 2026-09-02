@@ -178,7 +178,107 @@ Seven scenarios map to the three threat actors above. Each scenario is independe
 
 ---
 
-## 6. What This Threat Model Is NOT
+## 6. Infrastructure & Network Threats (Added: 2026-08-29)
+
+### Infrastructure Replay Attacks
+
+**Threat ID:** T-NET-01  
+**Scenario:** Attacker captures network traffic between API and Redis/Kafka and replays capability tokens or idempotency keys.  
+**Attack Vector:** Man-in-the-middle on unencrypted Redis/Kafka connections  
+**Likelihood:** MEDIUM (requires network access)  
+**Impact:** HIGH (could bypass authorization)  
+
+**Current Mitigations:**
+- JTI replay protection via Redis atomic SET NX
+- Short token TTL (5 seconds default)
+- Idempotency keys prevent duplicate processing
+
+**Gaps Identified:**
+- Redis connections may not enforce TLS
+- Kafka connections may not use SASL_SSL
+- Network security relies on infrastructure configuration
+
+**Recommendations:**
+1. Enforce TLS for all Redis connections (rediss://)
+2. Enforce Kafka SASL_SSL authentication
+3. Document network security requirements in deployment guide
+4. Add startup validation that fails if insecure connections detected in production
+
+---
+
+### Time Synchronization Attacks
+
+**Threat ID:** T-TIME-01  
+**Scenario:** Clock skew between API server and worker causes token expiry validation to fail incorrectly.  
+**Attack Vector:** NTP manipulation or misconfigured system clocks  
+**Likelihood:** LOW (requires infrastructure access)  
+**Impact:** MEDIUM (could accept expired tokens)  
+
+**Current Mitigations:**
+- Token TTL is short (5 seconds), limiting window
+- Expiry checked at both issuance and verification
+
+**Gaps Identified:**
+- No NTP synchronization monitoring
+- No clock drift alerting
+- No documented time sync requirements
+
+**Recommendations:**
+1. Add NTP sync monitoring to health checks
+2. Alert on clock drift > 1 second between services
+3. Document time synchronization requirements (NTP servers, stratum)
+4. Consider adding timestamp to token payload for drift detection
+
+---
+
+### Rate Limiting Bypass (Application-Layer DDoS)
+
+**Threat ID:** T-DOS-01  
+**Scenario:** Attacker floods API with evaluation requests to exhaust resources or poison behavioral profiles.  
+**Attack Vector:** Direct API access without rate limiting  
+**Likelihood:** HIGH (no rate limiting implemented)  
+**Impact:** HIGH (service degradation, false positives)  
+
+**Current Mitigations:**
+- NONE - Rate limiting not implemented
+
+**Gaps Identified:**
+- No request rate limiting at API layer
+- No agent-level throttling
+- Could exhaust Redis/Kafka/PostgreSQL connections
+- Could trigger false behavioral anomalies
+
+**Recommendations:**
+1. Implement rate limiting (100 requests/minute per IP)
+2. Add per-agent rate limiting (1000 requests/hour per agent_id)
+3. Implement circuit breakers for dependency overload
+4. Add rate limit metrics to monitoring
+
+**Status:** CRITICAL - Must be addressed before production
+
+---
+
+### Clickjacking & UI Redressing
+
+**Threat ID:** T-UI-01  
+**Scenario:** Attacker embeds Sentinel dashboard in malicious iframe, overlays fake UI to trick operators into approving malicious requests.  
+**Attack Vector:** Missing X-Frame-Options header  
+**Likelihood:** MEDIUM (requires operator interaction)  
+**Impact:** MEDIUM (social engineering attack)  
+
+**Current Mitigations:**
+- NONE - Security headers not implemented
+
+**Recommendations:**
+1. Add X-Frame-Options: DENY header
+2. Add Content-Security-Policy with frame-ancestors 'none'
+3. Implement CSRF tokens if session-based auth added
+
+**Status:** HIGH - Must be addressed before production
+
+---
+
+## 7. What This Threat Model Is NOT
 
 - NOT a model of attacks against Razorpay's infrastructure
 - NOT a penetration testing framework
@@ -187,3 +287,12 @@ Seven scenarios map to the three threat actors above. Each scenario is independe
 - NOT a generic fraud detection threat model
 
 This is a **defensive behavioral detection** threat model for the specific loss class: anomalous financial actions from autonomous agents.
+
+---
+
+## 8. Threat Model Updates
+
+**Version 1.0** (Initial): Core threat actors and behavioral scenarios  
+**Version 1.1** (2026-08-29): Added infrastructure, network, and application-layer threats based on penetration test findings  
+
+**Next Review:** Post-remediation of critical findings (T-DOS-01)

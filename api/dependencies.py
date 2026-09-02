@@ -131,17 +131,30 @@ async def init_app_state():
     from execution.gateway import ExecutionGateway
     from execution.adapters.mock_adapter import MockPaymentAdapter
     from execution.adapters.mcp_adapter import RazorpayMCPAdapter
-    
+    from execution.adapters.razorpay_direct import RazorpayDirectProvider
+
     execution_mode = settings.EXECUTION_MODE.lower()
-    if execution_mode == "mcp":
-        provider = RazorpayMCPAdapter()
+    razorpay_provider_type = settings.RAZORPAY_PROVIDER.lower()
+    razorpay_env = settings.RAZORPAY_ENVIRONMENT
+
+    if execution_mode == "razorpay":
+        # Production Razorpay integration
+        if razorpay_provider_type == "direct":
+            logger.info(f"Using RazorpayDirectProvider ({razorpay_env} mode)")
+            provider = RazorpayDirectProvider(environment=razorpay_env)
+        elif razorpay_provider_type == "mcp":
+            logger.info(f"Using RazorpayMCPAdapter ({razorpay_env} mode)")
+            provider = RazorpayMCPAdapter(environment=razorpay_env)
+        else:
+            logger.warning(f"Unknown RAZORPAY_PROVIDER: {razorpay_provider_type}, defaulting to MCP")
+            provider = RazorpayMCPAdapter(environment=razorpay_env)
     elif execution_mode == "dry_run":
-        provider = RazorpayMCPAdapter() # In dry_run, the MCP adapter might stop early, but we didn't implement dry_run natively inside the adapter yet. Actually, dry_run can just be MockPaymentAdapter for now or we can implement a DryRunAdapter. Let's just use Mock for dry_run for now since we didn't add the logic in RazorpayMCPAdapter. Wait, the user said dry_run should validate tool availability but not mutate.
-        # Let's add dry_run to the MCP Adapter later, or pass environment mode.
+        logger.info("Using dry_run mode (MCP with no mutations)")
         provider = RazorpayMCPAdapter(environment="dry_run")
     else:
+        logger.info("Using MockPaymentAdapter")
         provider = MockPaymentAdapter()
-        
+
     execution_adapter = ExecutionGateway(policy_engine.token_manager, provider, replay_store=redis_client)
     
     idempotency_engine = IdempotencyEngine(

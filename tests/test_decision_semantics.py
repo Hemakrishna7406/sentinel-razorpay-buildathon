@@ -1,7 +1,7 @@
 """Regression tests for the three terminal governance decisions."""
 
 from ml.fusion.risk_fusion import RiskFusionEngine
-from ml.schema import BehavioralRiskResult, RiskAssessment
+from ml.schema import BehavioralRiskResult, RiskAssessment, SemanticRiskResult
 from security.capability_token import IntentContext
 from security.policy import PolicyEngine
 
@@ -13,9 +13,21 @@ def assessment(score: float) -> RiskAssessment:
         reason_codes=["TEST"],
         model_version="test",
     )
+    semantic = SemanticRiskResult(
+        risk_score=score,
+        reason_codes=["SEMANTIC_MATCH"],
+        model_version="semantic-v1",
+        latency_ms=10.0,
+        intent_match=True,
+        extracted_entities={},
+        confidence=1.0,
+        provider="test",
+        is_simulated=False,
+    )
     return RiskAssessment(
         behavioral=behavioral,
-        fusion=RiskFusionEngine().fuse(behavioral, None),
+        semantic=semantic,
+        fusion=RiskFusionEngine().fuse(behavioral, semantic),
     )
 
 

@@ -46,7 +46,8 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
         # Sentinel action -> Razorpay MCP Tool mapping
         self.ALLOWED_ACTIONS = {
             "refund": "update_refund",
-            "create_order": "create_order"
+            "create_order": "create_order",
+            "simulate_timeout": "simulate_timeout"
         }
         
     async def _initialize_tools(self, force: bool = False):
@@ -150,6 +151,29 @@ class RazorpayMCPAdapter(PaymentExecutionProvider):
         # 2. Short Circuit Dry Run
         if self.environment == "dry_run":
             latency = int((time.time() - start_time) * 1000)
+            
+            if mcp_tool == "simulate_timeout":
+                time.sleep(0.5)
+                return ExecutionReceipt(
+                    execution_id=receipt_id,
+                    intent_id=capability.intent_id,
+                    decision_id=capability.decision,
+                    capability_jti=capability.jti,
+                    agent_id=capability.agent_id,
+                    requested_action=requested_action,
+                    mcp_tool=mcp_tool,
+                    requested_amount=capability.amount,
+                    executed_amount=0,
+                    currency=capability.currency,
+                    provider="razorpay-mcp",
+                    environment="dry_run",
+                    status="UNKNOWN",
+                    latency_ms=latency,
+                    verification_status="VERIFIED",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    provider_reference="simulated_timeout"
+                )
+                
             return ExecutionReceipt(
                 execution_id=receipt_id,
                 intent_id=capability.intent_id,

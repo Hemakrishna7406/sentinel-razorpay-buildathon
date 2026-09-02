@@ -285,12 +285,12 @@ async def main():
         logger.info("GPU Batch Queue initialized",
                     batch_size=GPU_BATCH_SIZE, timeout_ms=GPU_BATCH_TIMEOUT_MS)
 
-    from ml.providers.semantic_engine import SimulatedSemanticClient
+    from ml.providers.semantic_engine import DeterministicSemanticAnalyzer
     from ml.fusion.risk_fusion import RiskFusionEngine
     from ml.features import extract_features
     from ml.schema import BehavioralRiskResult, RiskAssessment, Decision
 
-    semantic_client = SimulatedSemanticClient()
+    semantic_client = DeterministicSemanticAnalyzer()
     risk_fusion = RiskFusionEngine(
         disagreement_threshold=0.6,
         base_escalation_threshold=model_wrapper.suspicious_threshold

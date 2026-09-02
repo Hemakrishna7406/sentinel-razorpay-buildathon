@@ -13,7 +13,7 @@ from security.nl_policy import NLPolicyCompiler
 from ml.schema import BehavioralRiskResult, FusionResult, RiskAssessment, Decision
 
 class PolicyEngine:
-    def __init__(self, suspicious_threshold: float = 0.5):
+    def __init__(self, suspicious_threshold: float = 0.15):
         self.suspicious_threshold = suspicious_threshold
         self.token_manager = TokenManager()
         self.nl_compiler = NLPolicyCompiler()
