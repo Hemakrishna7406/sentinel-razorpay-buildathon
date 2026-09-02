@@ -1,0 +1,203 @@
+groups:
+  - name: sentinel_critical
+    interval: 30s
+    rules:
+      # Service availability
+      - alert: SentinelAPIDown
+        expr: up{job="sentinel-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Sentinel API is down"
+          description: "Sentinel API has been unavailable for more than 1 minute"
+          runbook: "docs/runbooks/observability/service-down.md"
+
+      - alert: SentinelHighErrorRate
+        expr: rate(sentinel_requests_total{status=~"5.."}[5m]) / rate(sentinel_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          runbook: "docs/runbooks/observability/error-rate-spike.md"
+
+      - alert: SentinelHighLatency
+        expr: histogram_quantile(0.99, rate(sentinel_authorization_latency_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: authorization
+        annotations:
+          summary: "High authorization latency"
+          description: "P99 latency is {{ $value }}s (threshold: 100ms)"
+          runbook: "docs/runbooks/observability/high-latency.md"
+
+      # Database alerts
+      - alert: DatabaseConnectionFailure
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL is unavailable"
+          description: "Database has been unreachable for more than 1 minute"
+
+      - alert: DatabaseHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+
+      # Redis alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis is unavailable"
+          description: "Redis has been unreachable for more than 1 minute"
+
+      # Kafka alerts
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 10m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "High Kafka consumer lag"
+          description: "Consumer lag is {{ $value }} messages"
+
+      # Security alerts
+      - alert: SecurityInvariantViolation
+        expr: sentinel_security_invariant_violations > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "Security invariant violated"
+          description: "Security invariant violation detected: {{ $labels.invariant }}"
+          runbook: "docs/runbooks/security/invariant-violation.md"
+
+      - alert: UnusualContainRate
+        expr: rate(sentinel_decisions_total{decision="CONTAIN"}[10m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Unusual spike in CONTAIN decisions"
+          description: "CONTAIN rate is {{ $value }}/s (investigate potential attack)"
+
+  - name: sentinel_warnings
+    interval: 1m
+    rules:
+      # Performance warnings
+      - alert: SentinelElevatedErrorRate
+        expr: rate(sentinel_requests_total{status=~"5.."}[10m]) / rate(sentinel_requests_total[10m]) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Elevated error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      - alert: SentinelElevatedLatency
+        expr: histogram_quantile(0.95, rate(sentinel_authorization_latency_bucket[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: authorization
+        annotations:
+          summary: "Elevated authorization latency"
+          description: "P95 latency is {{ $value }}s"
+
+      # Resource warnings
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining"
+
+      # Certificate expiry
+      - alert: CertificateExpiringSoon
+        expr: (ssl_certificate_expiry_seconds - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "Certificate expires in {{ $value }} days"
+
+  - name: sentinel_slo
+    interval: 5m
+    rules:
+      # Availability SLO (99.9%)
+      - alert: SLOAvailabilityBudgetBurn
+        expr: |
+          (
+            1 - (
+              sum(rate(sentinel_requests_total{status!~"5.."}[30d]))
+              /
+              sum(rate(sentinel_requests_total[30d]))
+            )
+          ) > 0.001
+        labels:
+          severity: warning
+          component: slo
+        annotations:
+          summary: "Availability SLO budget burning"
+          description: "Error budget consumption: {{ $value | humanizePercentage }}"
+
+      # Latency SLO (95% < 30ms)
+      - alert: SLOLatencyBudgetBurn
+        expr: |
+          (
+            sum(rate(sentinel_authorization_latency_bucket{le="0.03"}[7d]))
+            /
+            sum(rate(sentinel_authorization_latency_count[7d]))
+          ) < 0.95
+        labels:
+          severity: warning
+          component: slo
+        annotations:
+          summary: "Latency SLO budget burning"
+          description: "{{ $value | humanizePercentage }} of requests meet latency SLO"

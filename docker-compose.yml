@@ -118,13 +118,13 @@ services:
     volumes:
       - .:/app
     command: python -m worker.evaluator
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: 1
+#              capabilities: [gpu]
     depends_on:
       migrate:
         condition: service_completed_successfully

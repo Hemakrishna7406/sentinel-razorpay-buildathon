@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     # Auth & Execution
     CAPABILITY_SIGNING_KEY: str = Field("sentinel-local-dev-secret-do-not-use-in-prod", description="Key for signing capability tokens")
     EXECUTION_MODE: str = Field("mock", description="Execution adapter mode (mock, razorpay)")
+    RAZORPAY_PROVIDER: str = Field("mcp", description="Razorpay provider type (mcp, direct)")
     RAZORPAY_KEY_ID: Optional[str] = Field(None, description="Razorpay Key ID")
     RAZORPAY_KEY_SECRET: Optional[str] = Field(None, description="Razorpay Key Secret")
+    RAZORPAY_ENVIRONMENT: str = Field("test", description="Razorpay environment (test, live)")
 
     # Worker & ML configuration
     INFERENCE_BACKEND: str = Field("cpu", description="ML Inference backend (cpu, gpu)")
@@ -46,6 +48,12 @@ class Settings(BaseSettings):
     AUDIT_METRICS_PORT: int = Field(8002, description="Port for prometheus metrics scrape on audit consumer")
     OTEL_EXPORTER_OTLP_ENDPOINT: str = Field("", description="OpenTelemetry exporter endpoint")
     OTEL_SERVICE_NAME: str = Field("sentinel", description="OTel service name")
+
+    # CORS (comma-separated origins allowed to call the API directly, e.g. Vite dev server)
+    CORS_ORIGINS: str = Field(
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173",
+        description="Comma-separated list of allowed browser origins",
+    )
 
     # Security Tuning
     IDEMPOTENCY_TTL_SECONDS: int = Field(86400, description="Idempotency TTL")
