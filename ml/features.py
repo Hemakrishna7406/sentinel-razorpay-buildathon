@@ -15,10 +15,11 @@ import numpy as np
 
 # Define feature groups for ablation studies
 TRANSACTION_FEATURES = [
-    "amount", "amount_log", "recipient_novelty", 
+    "amount", "amount_log", "recipient_novelty",
     "action_refund", "action_retry", "action_checkout", "action_payout",
-    "hour_of_day", "is_typical_hour",
+    "hour_of_day", "is_typical_hour", "day_of_week", "is_weekend",
     "rolling_1m_count", "rolling_1h_count", "rolling_24h_count",
+    "velocity_per_hour", "velocity_per_day",
 ]
 
 BEHAVIORAL_FEATURES = [
@@ -27,6 +28,9 @@ BEHAVIORAL_FEATURES = [
     "amount_z", "amount_z_missing",
     "hour_distance", "hour_distance_missing",
     "frequency_z", "frequency_z_missing",
+    "recipient_diversity_score", "recipient_diversity_missing",
+    "amount_percentile", "amount_percentile_missing",
+    "velocity_acceleration", "velocity_acceleration_missing",
 ]
 
 
@@ -54,43 +58,66 @@ def extract_features(row: Dict[str, Any]) -> Dict[str, Any]:
     
     hour = row.get("hour_of_day", 0)
     features["hour_of_day"] = hour
-    
+
+    # Time-based pattern features
+    day_of_week = row.get("day_of_week", 0)  # 0=Monday, 6=Sunday
+    features["day_of_week"] = day_of_week
+    features["is_weekend"] = 1 if day_of_week >= 5 else 0
+
     typ_start = row.get("typical_hour_start", 0)
     typ_end = row.get("typical_hour_end", 23)
-    
+
     # Handle wrap-around hours if needed (assuming simple contiguous range for now)
     if typ_start <= typ_end:
         is_typical = 1 if typ_start <= hour <= typ_end else 0
     else:
         is_typical = 1 if hour >= typ_start or hour <= typ_end else 0
     features["is_typical_hour"] = is_typical
-    
-    features["rolling_1m_count"] = row.get("rolling_1m_count", 0)
-    features["rolling_1h_count"] = row.get("rolling_1h_count", 0)
-    features["rolling_24h_count"] = row.get("rolling_24h_count", 0)
+
+    # Rolling counts
+    rolling_1m = row.get("rolling_1m_count", 0)
+    rolling_1h = row.get("rolling_1h_count", 0)
+    rolling_24h = row.get("rolling_24h_count", 0)
+
+    features["rolling_1m_count"] = rolling_1m
+    features["rolling_1h_count"] = rolling_1h
+    features["rolling_24h_count"] = rolling_24h
+
+    # Velocity features (transactions per time unit)
+    features["velocity_per_hour"] = rolling_1h  # Already per hour
+    features["velocity_per_day"] = rolling_24h / 24.0 if rolling_24h > 0 else 0.0
 
 
     # ---------------------------------------------------------
     # BEHAVIORAL FEATURES
     # ---------------------------------------------------------
     features["agent_age_days"] = row.get("agent_age_days", 0)
-    
+
     has_history = row.get("has_sufficient_history", 1)
-    
+
     if not has_history:
         # Explicitly mark missing behavioral context for new agents
         features["velocity_z"] = np.nan
         features["velocity_z_missing"] = 1
-        
+
         features["amount_z"] = np.nan
         features["amount_z_missing"] = 1
-        
+
         features["hour_distance"] = np.nan
         features["hour_distance_missing"] = 1
-        
+
         features["frequency_z"] = np.nan
         features["frequency_z_missing"] = 1
-        
+
+        features["recipient_diversity_score"] = np.nan
+        features["recipient_diversity_missing"] = 1
+
+        features["amount_percentile"] = np.nan
+        features["amount_percentile_missing"] = 1
+
+        features["velocity_acceleration"] = np.nan
+        features["velocity_acceleration_missing"] = 1
+
         features["behavioral_drift_score"] = np.nan
     else:
         # Compute z-scores against baseline
@@ -124,13 +151,50 @@ def extract_features(row: Dict[str, Any]) -> Dict[str, Any]:
         expected_daily = max(expected_daily, 0.001)
         features["frequency_z"] = (features["rolling_24h_count"] - expected_daily) / expected_daily
         features["frequency_z_missing"] = 0
-        
+
+        # Recipient diversity metrics
+        unique_recipients_24h = row.get("unique_recipients_24h", 1)
+        total_txns_24h = max(rolling_24h, 1)
+        # Diversity score: ratio of unique recipients to total transactions
+        # High diversity (close to 1) = each txn to different recipient (suspicious)
+        # Low diversity (close to 0) = repeated recipients (normal)
+        features["recipient_diversity_score"] = unique_recipients_24h / total_txns_24h
+        features["recipient_diversity_missing"] = 0
+
+        # Amount distribution features
+        # Percentile of current amount in agent's historical distribution
+        baseline_q25 = row.get("baseline_amount_q25", baseline_avg_amt)
+        baseline_q75 = row.get("baseline_amount_q75", baseline_avg_amt)
+
+        if amount <= baseline_q25:
+            amount_percentile = 0.25 * (amount / max(baseline_q25, 1))
+        elif amount <= baseline_avg_amt:
+            amount_percentile = 0.25 + 0.25 * ((amount - baseline_q25) / max(baseline_avg_amt - baseline_q25, 1))
+        elif amount <= baseline_q75:
+            amount_percentile = 0.50 + 0.25 * ((amount - baseline_avg_amt) / max(baseline_q75 - baseline_avg_amt, 1))
+        else:
+            # Above 75th percentile, scale to 1.0
+            amount_percentile = 0.75 + 0.25 * min(1.0, (amount - baseline_q75) / max(baseline_q75, 1))
+
+        features["amount_percentile"] = amount_percentile
+        features["amount_percentile_missing"] = 0
+
+        # Velocity acceleration (change in velocity)
+        # Compare recent 1h velocity to baseline
+        recent_velocity = rolling_1h
+        velocity_ratio = recent_velocity / max(baseline_hourly, 0.001)
+        # Log-scale acceleration to capture sudden bursts
+        features["velocity_acceleration"] = math.log1p(velocity_ratio)
+        features["velocity_acceleration_missing"] = 0
+
         # Diagnostic drift score (not used by model unless ablation allows)
         features["behavioral_drift_score"] = (
-            abs(features["velocity_z"]) + 
-            abs(features["amount_z"]) + 
-            features["hour_distance"] / 12.0
-        ) / 3.0
+            abs(features["velocity_z"]) +
+            abs(features["amount_z"]) +
+            features["hour_distance"] / 12.0 +
+            features["recipient_diversity_score"] +
+            abs(features["velocity_acceleration"])
+        ) / 5.0
 
     return features
 

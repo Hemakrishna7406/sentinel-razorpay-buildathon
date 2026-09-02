@@ -9,7 +9,7 @@ class RiskFusionEngine:
     def __init__(
         self,
         disagreement_threshold: float = 0.6,
-        base_escalation_threshold: float = 0.5,
+        base_escalation_threshold: float = 0.15,
         containment_threshold: float = 0.85,
     ):
         self.disagreement_threshold = disagreement_threshold
@@ -29,15 +29,13 @@ class RiskFusionEngine:
             # Degraded operation: Semantic provider unavailable
             if behavioral.risk_score >= self.containment_threshold:
                 decision = Decision.CONTAIN
-            elif behavioral.risk_score >= self.base_escalation_threshold:
-                decision = Decision.ESCALATE
             else:
-                decision = Decision.ALLOW
+                decision = Decision.ESCALATE
             return FusionResult(
                 final_risk=behavioral.risk_score,
                 disagreement=False,
                 decision=decision,
-                reason="Semantic provider unavailable. Fallback to behavioral risk."
+                reason="Semantic provider unavailable. Failing closed to ESCALATE."
             )
             
         # We have both signals

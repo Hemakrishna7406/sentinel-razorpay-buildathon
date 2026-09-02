@@ -1,0 +1,22 @@
+artifact_path: file:D:/Sentinel Razorpay Buildathon/sentinel-razorpay-buildathon/mlruns/1/models/m-a6c77792f6684e7f91ceb956f6758204/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.14.3
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.core.Booster
+    model_format: ubj
+    xgb_version: 3.4.1
+mlflow_version: 3.15.1
+model_id: m-a6c77792f6684e7f91ceb956f6758204
+model_size_bytes: 159199
+model_uuid: m-a6c77792f6684e7f91ceb956f6758204
+prompts: null
+run_id: 8b45789c768643beb48d9cfc928127b5
+utc_time_created: '2026-08-30 12:21:41.125954'

@@ -1,9 +1,9 @@
 {
   "dataset_version": "sentinel-v2",
   "seed": 42,
-  "generator_commit": "unknown",
+  "generator_commit": "f311b85411495b1a52aff74e56449c6ae38b1480",
   "row_count": 172785,
-  "sha256": "b11ef456bc527043e147bafa351554e9684bd01112801647ba6909684b3e4122",
+  "sha256": "1eb6af86dcdd358624dccf69b1d1fcbdab9efd5a08fdd25ca45805629145cbea",
   "date_range": "Day 1 to 30",
   "train_days": [
     1,

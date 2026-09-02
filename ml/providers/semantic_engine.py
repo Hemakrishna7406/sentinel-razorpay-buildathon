@@ -11,10 +11,10 @@ class SemanticRiskProvider(ABC):
     def evaluate(self, intent: IntentContext, context: Dict[str, Any]) -> SemanticRiskResult:
         pass
 
-class SimulatedSemanticClient(SemanticRiskProvider):
+class DeterministicSemanticAnalyzer(SemanticRiskProvider):
     """
-    Simulates a foundation model evaluating a transaction sequence.
-    Generates deterministic contextual signals rather than random noise.
+    A deterministic rule-based semantic analyzer.
+    Analyzes transaction context and text without relying on external LLM inference.
     """
     def evaluate(self, intent: IntentContext, context: Dict[str, Any]) -> SemanticRiskResult:
         start_time = time.time()
@@ -55,14 +55,8 @@ class SimulatedSemanticClient(SemanticRiskProvider):
             risk_score=risk_score,
             confidence=confidence,
             reason_codes=reason_codes or ["NORMAL_CONTEXT"],
-            provider="simulated-semantic",
+            provider="deterministic-semantic",
             model_version="sim-v1",
             latency_ms=latency_ms
         )
 
-class VulcanClient(SemanticRiskProvider):
-    """
-    Simulated semantic risk provider.
-    """
-    def evaluate(self, intent: IntentContext, context: Dict[str, Any]) -> SemanticRiskResult:
-        raise NotImplementedError("Genuine Vulcan API access not configured.")
