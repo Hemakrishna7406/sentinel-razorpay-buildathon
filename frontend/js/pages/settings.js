@@ -1,0 +1,31 @@
+const SettingsPage={
+  render(){
+    return `
+    <div class="settings-section"><div class="settings-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Full Name</div><div class="settings-desc">Display name across the platform</div></div><input type="text" class="form-input" value="Alicia Morgan" style="width:220px"></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Email Address</div><div class="settings-desc">Used for notifications and authentication</div></div><input type="email" class="form-input" value="alicia@sentinel.ai" style="width:220px"></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Role</div><div class="settings-desc">Access level within Sentinel</div></div><span class="badge badge-blue">Security Engineer</span></div>
+    </div>
+    <div class="settings-section"><div class="settings-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Critical Anomaly Alerts</div><div class="settings-desc">Instant notification on critical anomaly detection</div></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">CONTAIN Decision Alerts</div><div class="settings-desc">Notify when an agent intent is contained</div></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Daily Digest</div><div class="settings-desc">Summary of daily KPIs, fraud events, and anomalies</div></div><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Audit Chain Break Alerts</div><div class="settings-desc">Immediate alert if audit chain integrity is compromised</div></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+    </div>
+    <div class="settings-section"><div class="settings-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Security</div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Two-Factor Authentication</div><div class="settings-desc">Add an extra security layer to your account</div></div><button class="btn btn-outline btn-sm">Setup 2FA</button></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Change Password</div><div class="settings-desc">Update your password regularly</div></div><button class="btn btn-outline btn-sm">Change</button></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Active Sessions</div><div class="settings-desc">Manage active login sessions</div></div><span style="font-size:.75rem;color:var(--green);font-weight:600">1 active</span></div>
+    </div>
+    <div class="settings-section"><div class="settings-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>System Configuration</div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Operation Mode</div><div class="settings-desc">Observe (dry-run) vs Govern (active blocking)</div></div><select class="form-input form-select" style="width:150px"><option selected>Govern</option><option>Observe</option></select></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Suspicious Threshold</div><div class="settings-desc">Risk score for ESCALATE decisions (default: 0.15)</div></div><input type="number" class="form-input" value="0.15" step="0.01" min="0" max="1" style="width:100px"></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Inference Backend</div><div class="settings-desc">ML model inference engine</div></div><select class="form-input form-select" style="width:150px"><option selected>CPU (XGBoost)</option><option>GPU (CUDA)</option><option>ONNX Runtime</option></select></div>
+      <div class="settings-row"><div class="settings-info"><div class="settings-label">Capability Token TTL</div><div class="settings-desc">Time-to-live for single-use tokens (seconds)</div></div><input type="number" class="form-input" value="5" min="1" max="60" style="width:100px"></div>
+    </div>
+    <div class="settings-section"><div class="settings-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Infrastructure</div>
+      ${D.infra.map(i=>`<div class="settings-row"><div class="settings-info"><div class="settings-label">${i.name}</div><div class="settings-desc">Latency: ${i.ms}ms</div></div><span class="badge badge-healthy">${i.sub}</span></div>`).join('')}
+    </div>`;
+  },
+  mount(){}
+};
