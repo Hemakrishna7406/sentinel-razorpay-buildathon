@@ -59,7 +59,7 @@ a{text-decoration:none;color:inherit;transition:all 0.2s ease;}
 
 /* NAV (Floating Pill) */
 .nav-wrapper {
-  position: fixed;
+  position: absolute;
   top: 24px;
   left: 0;
   width: 100%;
@@ -78,7 +78,7 @@ nav {
   border: 1px solid var(--border);
   border-radius: 100px;
   width: 100%;
-  max-width: 900px;
+  max-width: 1200px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 .nav-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.125rem;letter-spacing:0.02em;}
@@ -228,6 +228,98 @@ nav {
 .marquee-item:hover { opacity: 1; }
 .marquee-item svg { width: 24px; height: 24px; fill: currentColor; }
 
+/* DASHBOARD PREVIEW */
+.dash-preview {
+  margin: 120px 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dash-preview.revealed {
+  margin: 0; /* Remove top/bottom margins to allow full stretch */
+}
+.dp-container {
+  width: 90%;
+  max-width: 1200px;
+  position: relative;
+  transition: all 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(100px) scale(0.95);
+  opacity: 0;
+}
+.dash-preview.revealed .dp-container {
+  width: 100vw;
+  max-width: 100vw;
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.dp-container::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 80px;
+  background: var(--primary);
+  filter: blur(100px);
+  opacity: 0.2;
+  z-index: -1;
+}
+.dp-header {
+  text-align: center;
+  margin-bottom: 40px;
+  transition: opacity 0.5s ease;
+}
+.dp-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+.dp-header h2 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+.dp-image {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: 12px;
+  box-shadow: 0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  transition: all 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dash-preview.revealed .dp-image {
+  padding: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+.dp-image iframe {
+  width: 100%;
+  height: 600px;
+  border: none;
+  border-radius: 16px;
+  background: #000;
+  transition: all 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dash-preview.revealed .dp-image iframe {
+  height: 100vh;
+  border-radius: 0;
+}
+
 /* BENTO GRID (21st.dev Style) */
 .section-title {
   text-align: center;
@@ -247,22 +339,23 @@ nav {
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 320px;
-  gap: 24px;
+  grid-auto-rows: 420px;
+  gap: 32px;
   margin-bottom: 120px;
 }
 
 /* Spotlight Card Base */
 .bento-card {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 24px;
-  padding: 32px;
+  padding: 24px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.05);
 }
 .bento-card::before {
   content: "";
@@ -270,19 +363,21 @@ nav {
   top: 0; left: 0; right: 0; bottom: 0;
   border-radius: inherit;
   padding: 1px;
-  background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.2), transparent 40%);
+  background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.15), transparent 40%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.5s ease;
   pointer-events: none;
 }
 .bento-grid:hover .bento-card::before {
   opacity: 1;
 }
 .bento-card:hover {
+  transform: translateY(-4px);
   border-color: rgba(255,255,255,0.15);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8), inset 0 1px 0 0 rgba(255,255,255,0.1);
 }
 
 .bc-large { grid-column: span 2; }
@@ -291,53 +386,188 @@ nav {
 .bc-icon {
   width: 48px;
   height: 48px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
-.bc-icon svg { width: 24px; height: 24px; color: var(--text); }
-.bc-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em; }
-.bc-desc { color: var(--text-muted); font-size: 0.875rem; line-height: 1.5; }
+.bc-icon svg { width: 24px; height: 24px; color: #fff; filter: drop-shadow(0 0 8px rgba(255,255,255,0.4)); }
+.bc-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em; color: #fff; }
+.bc-desc { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.6; }
 
 /* Visuals inside Bento Cards */
 .bc-visual {
   flex: 1;
-  margin-top: 24px;
-  background: rgba(0,0,0,0.3);
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.05);
+  margin-top: 16px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
 }
 .visual-glow {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center, rgba(59,130,246,0.15) 0%, transparent 70%);
+  background: radial-gradient(circle at center, rgba(59,130,246,0.15) 0%, transparent 60%);
+  z-index: 0;
+}
+.visual-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Mock Mac Window */
+.mock-window {
+  background: #09090b;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  width: 80%;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.mock-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.mock-dots div {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.mock-dots div:nth-child(1) { background: #ff5f56; }
+.mock-dots div:nth-child(2) { background: #ffbd2e; }
+.mock-dots div:nth-child(3) { background: #27c93f; }
+.mock-code {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #60a5fa;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* CTA SECTION */
+.cta-section {
+  padding: 120px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  margin-top: 60px;
+}
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1000px;
+  height: 400px;
+  background: radial-gradient(ellipse at center, rgba(59,130,246,0.15) 0%, transparent 60%);
+  z-index: -1;
+  pointer-events: none;
+}
+.cta-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+.cta-content h2 {
+  font-size: 4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.cta-content p {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  margin-bottom: 40px;
 }
 
 /* FOOTER */
 footer {
   border-top: 1px solid var(--border);
-  padding: 60px 0 40px;
-  text-align: center;
+  background: rgba(0,0,0,0.4);
+  padding: 80px 24px 40px;
+}
+.footer-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 60px;
+  margin-bottom: 80px;
+}
+.footer-brand svg {
+  width: 32px;
+  height: 32px;
+  fill: var(--text);
+  margin-bottom: 16px;
+}
+.footer-brand p {
   color: var(--text-muted);
   font-size: 0.875rem;
+  max-width: 300px;
+}
+.footer-col h4 {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+.footer-col a {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+}
+.footer-col a:hover {
+  color: var(--text);
+}
+.footer-bottom {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.footer-socials {
+  display: flex;
+  gap: 16px;
+}
+.footer-socials svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 @media (max-width: 900px) {
   .bento-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
   .bc-large, .bc-tall { grid-column: span 1; grid-row: span 1; }
   .hero h1 { font-size: 3.5rem; }
+  .cta-content h2 { font-size: 3rem; }
   nav { padding: 12px 16px; }
   .nav-links { display: none; }
+  .footer-grid { grid-template-columns: 1fr; gap: 40px; }
+  .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
 }
 </style>
 </head>
@@ -363,10 +593,6 @@ footer {
 
 <div class="container">
   <header class="hero animate-up delay-1">
-    <div class="magic-badge">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      Sentinel 2.0 is live
-    </div>
     
     <h1>
       <span class="gradient">Security for</span><br>
@@ -401,6 +627,18 @@ footer {
     <div class="marquee-item"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Credence</div>
     <div class="marquee-item"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Northwind</div>
     <div class="marquee-item"><svg viewBox="0 0 24 24"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg> StackOne</div>
+</div>
+</div>
+
+<div class="dash-preview" id="dash-preview">
+  <div class="dp-container">
+    <div class="dp-header">
+      <h2>Real-time visibility. Total control.</h2>
+      <p style="color: var(--text-muted); font-size: 1.125rem;">Every decision, every risk score, every action—visible as it happens.</p>
+    </div>
+    <div class="dp-image">
+      <iframe src="frontend/#/overview" title="Sentinel Dashboard Preview"></iframe>
+    </div>
   </div>
 </div>
 
@@ -418,8 +656,19 @@ footer {
       <div class="bc-desc">Short-lived, cryptographically signed tokens with strict permissions ensure your agents only do what they are authorized to do.</div>
       <div class="bc-visual">
         <div class="visual-glow"></div>
-        <div style="padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; font-family: monospace; font-size: 0.75rem; color: #60a5fa;">
-          eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        <div class="visual-content">
+          <div class="mock-window">
+            <div class="mock-dots"><div></div><div></div><div></div></div>
+            <div class="mock-code">
+              <span style="color:#a78bfa">header:</span> { "alg": "HS256" }<br><br>
+              <span style="color:#a78bfa">payload:</span> {<br>
+              &nbsp;&nbsp;"sub": "agent_alpha",<br>
+              &nbsp;&nbsp;"action": "wire_transfer",<br>
+              &nbsp;&nbsp;"exp": 1735689600<br>
+              }<br><br>
+              <span style="color:#a78bfa">signature:</span> XyZ123...
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -428,35 +677,101 @@ footer {
     <div class="bento-card">
       <div class="bc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
       <div class="bc-title">Audit Chain</div>
-      <div class="bc-desc">Tamper-proof hash chain ensures absolute integrity of every event.</div>
+      <div class="bc-desc">Tamper-proof hash chain ensures absolute integrity of every single event. Cryptographically verified.</div>
+      <div class="bc-visual" style="flex: 1; align-items: center; justify-content: space-evenly; flex-direction: column; padding: 24px;">
+        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; position: relative;">
+          <div style="position: absolute; left: 0; top: 0; height: 100%; width: 40%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 4px; animation: shimmer 2s infinite;"></div>
+        </div>
+        <div style="font-family: monospace; color: var(--text-muted); font-size: 0.75rem; display: flex; justify-content: space-between; width: 100%;">
+          <span>0x7f2A</span>
+          <span>-></span>
+          <span>0x9B4E</span>
+        </div>
+      </div>
     </div>
 
     <!-- Card 3 (Standard) -->
     <div class="bento-card">
       <div class="bc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
       <div class="bc-title">Zero Tolerance</div>
-      <div class="bc-desc">Fail-closed architecture. No security, no compromises.</div>
+      <div class="bc-desc">Fail-closed architecture. No security compromises. Block everything by default.</div>
+      <div class="bc-visual" style="flex: 1; justify-content: center; align-items: center;">
+         <div style="width: 80px; height: 80px; border-radius: 50%; border: 2px dashed #ef4444; display: flex; align-items: center; justify-content: center; position: relative;">
+           <div style="position: absolute; inset: 0; background: #ef4444; opacity: 0.1; border-radius: 50%;"></div>
+           <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="width: 32px; height: 32px;"><path d="M18 6 6 18M6 6l12 12"/></svg>
+         </div>
+      </div>
     </div>
 
     <!-- Card 4 (Large, Tall) -->
     <div class="bento-card bc-large">
       <div class="bc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
       <div class="bc-title">Deterministic Policy Engine</div>
-      <div class="bc-desc">Risk fusion + natural language policies with strict precedence. Build rules that humans understand and machines enforce.</div>
+      <div class="bc-desc">Risk fusion + natural language policies with strict precedence. Build rules that humans understand and machines enforce flawlessly.</div>
       <div class="bc-visual">
         <div class="visual-glow"></div>
-        <div style="display:flex;gap:12px;">
-          <div style="background:rgba(220,38,38,0.1); color:#ef4444; padding:8px 16px; border-radius:100px; font-size:0.75rem; border:1px solid rgba(220,38,38,0.2);">High Risk -> Block</div>
-          <div style="background:rgba(16,185,129,0.1); color:#10b981; padding:8px 16px; border-radius:100px; font-size:0.75rem; border:1px solid rgba(16,185,129,0.2);">Low Risk -> Allow</div>
+        <div class="visual-content">
+          <div style="display:flex; flex-direction: column; gap:16px; width: 100%; max-width: 400px;">
+            <!-- Rule 1 -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-family: monospace; font-size: 0.85rem; color: var(--text);">amount > $10,000</span>
+              <div style="background:rgba(220,38,38,0.1); color:#ef4444; padding:6px 12px; border-radius:100px; font-size:0.75rem; border:1px solid rgba(220,38,38,0.2); font-weight: 600;">Block</div>
+            </div>
+            <!-- Rule 2 -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-family: monospace; font-size: 0.85rem; color: var(--text);">risk_score < 40</span>
+              <div style="background:rgba(16,185,129,0.1); color:#10b981; padding:6px 12px; border-radius:100px; font-size:0.75rem; border:1px solid rgba(16,185,129,0.2); font-weight: 600;">Allow</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<section class="cta-section animate-up">
+  <div class="cta-content">
+    <h2>Secure your agents.</h2>
+    <p>Deploy deterministic authorization and real-time risk intelligence in minutes. Zero trust execution for the AI era.</p>
+    <a href="frontend/#/overview" class="btn-primary btn-large" style="display:inline-block;">Start Building Now</a>
+  </div>
+</section>
+
 <footer>
-  <div class="container">
-    © 2024 Sentinel. All rights reserved.
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" fill="none"/><path d="M22 12c0 0-2.5-2-6-2s-6 3-6 5c0 4 4 5 6 5s6 1 6 4c0 1.5-2.5 4-6 4s-6-2-6-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      <p>The deterministic authorization control plane for AI financial agents. Built for zero-trust execution.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Platform</h4>
+      <a href="#">Overview</a>
+      <a href="#">Policy Engine</a>
+      <a href="#">Audit Ledger</a>
+      <a href="#">Risk Intelligence</a>
+    </div>
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <a href="#">Documentation</a>
+      <a href="#">API Reference</a>
+      <a href="#">Security</a>
+      <a href="#">Blog</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="#">About</a>
+      <a href="#">Careers</a>
+      <a href="#">Terms of Service</a>
+      <a href="#">Privacy Policy</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© 2024 Sentinel. All rights reserved.</div>
+    <div class="footer-socials">
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/></svg></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg></a>
+    </div>
   </div>
 </footer>
 
@@ -471,6 +786,27 @@ footer {
       card.style.setProperty('--mouse-x', `${x}px`);
       card.style.setProperty('--mouse-y', `${y}px`);
     }
+  }
+
+  // Scroll reveal for dashboard preview
+  const dashPreview = document.getElementById('dash-preview');
+  if (dashPreview) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          // Once revealed, we can keep it revealed, or allow it to un-reveal when scrolling back up.
+          // Let's allow it to reverse if the user scrolls up past it so the effect is repeatable.
+        } else {
+          const rect = entry.target.getBoundingClientRect();
+          // Only un-reveal if we scroll up above it
+          if (rect.top > 0) {
+            entry.target.classList.remove('revealed');
+          }
+        }
+      });
+    }, { threshold: 0.4 });
+    observer.observe(dashPreview);
   }
 </script>
 </body>
