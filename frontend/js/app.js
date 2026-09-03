@@ -11,14 +11,18 @@ const App={
     'observability': {m:ObservabilityPage,      t:'Observability',      s:'Metrics, traces, logs, and dependency health monitoring'},
     'settings':      {m:SettingsPage,           t:'Settings',           s:'Configure profile, notifications, security, and system parameters'}
   },
-  init(){
+  async init(){
     window.addEventListener('hashchange',()=>this.route());
     if(!location.hash||location.hash==='#/') location.hash='#/login';
     else this.route();
   },
-  route(){
+  async route(){
     const h=(location.hash.replace('#/','')||'login').split('?')[0];
     if(h==='login'){document.getElementById('app').innerHTML=LoginPage.render();LoginPage.mount();document.title='Sentinel — Sign In';return}
+    
+    // Fetch real data before rendering page
+    await D.init();
+    
     const p=this.pages[h];
     if(!p){location.hash='#/overview';return}
     const pageEl=document.getElementById('app');

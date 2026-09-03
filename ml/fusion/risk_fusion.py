@@ -41,15 +41,9 @@ class RiskFusionEngine:
         # We have both signals
         disagreement = abs(behavioral.risk_score - semantic.risk_score) > self.disagreement_threshold
         
-        # Calculate a simple confidence-weighted fusion score
-        total_confidence = behavioral.confidence + semantic.confidence
-        if total_confidence > 0:
-            final_risk = (
-                (behavioral.risk_score * behavioral.confidence) + 
-                (semantic.risk_score * semantic.confidence)
-            ) / total_confidence
-        else:
-            final_risk = max(behavioral.risk_score, semantic.risk_score)
+        # Calculate final risk using a strict Fail-Closed Maximum
+        # Do NOT average signals, as that masks highly anomalous semantic signals with low behavioral ones.
+        final_risk = max(behavioral.risk_score, semantic.risk_score)
             
         if disagreement:
             return FusionResult(

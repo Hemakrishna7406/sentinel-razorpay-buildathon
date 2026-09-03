@@ -16,13 +16,22 @@ const OverviewPage={
       'PostgreSQL': 'M0 16 L10 10 L20 15 L30 5 L40 15 L50 10 L60 8'
     };
     return `
-    <div class="g-4">
+    ${k.totalRequests === 0 ? `
+    <div style="background:var(--surface-sunken);border:1px dashed var(--border-light);border-radius:var(--radius-lg);padding:60px 20px;text-align:center;margin-bottom:24px">
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;color:var(--text-secondary)"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+      <h3 style="margin-bottom:8px">No Authorization Events Yet</h3>
+      <p style="color:var(--text-secondary);max-width:400px;margin:0 auto 20px;font-size:0.85rem">The audit ledger is currently empty. Run a simulation to populate Sentinel with synthetic transaction data and observe the detection pipeline in real-time.</p>
+      <button class="btn btn-primary" onclick="location.hash='#/demo-scenarios'">Run Demo Scenario</button>
+    </div>` : ''}
+    <div class="g-4" style="${k.totalRequests === 0 ? 'opacity:0.3;pointer-events:none' : ''}">
       <div class="stat-card"><div class="stat-icon nv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-body"><div class="stat-val">${k.totalRequests.toLocaleString()}</div><div class="stat-lbl">Total Requests</div><div class="stat-change up">${arrow(k.reqChange)} ${k.reqChange}% vs 24h ago</div></div></div>
       <div class="stat-card"><div class="stat-icon gn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></div><div class="stat-body"><div class="stat-val">${(k.allowRate*100).toFixed(1)}%</div><div class="stat-lbl">Allow Rate</div><div class="stat-change up">${arrow(k.allowChange)} ${k.allowChange}% vs 24h ago</div></div></div>
       <div class="stat-card"><div class="stat-icon am"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="stat-body"><div class="stat-val">${(k.escalateRate*100).toFixed(1)}%</div><div class="stat-lbl">Escalate Rate</div><div class="stat-change up">${arrow(k.escChange)} ${k.escChange}% vs 24h ago</div></div></div>
       <div class="stat-card"><div class="stat-icon rd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="stat-body"><div class="stat-val">${(k.containRate*100).toFixed(1)}%</div><div class="stat-lbl">Contain Rate</div><div class="stat-change down">${arrow(k.conChange)} ${Math.abs(k.conChange)}% vs 24h ago</div></div></div>
     </div>
-    <div class="g-23">
+    <div class="g-23" style="${k.totalRequests === 0 ? 'opacity:0.3;pointer-events:none' : ''}">
       <div>
         <div class="card" style="margin-bottom:20px">
           <div class="card-head"><span class="card-t">Authorization Decisions Over Time</span><div style="display:flex;gap:12px;align-items:center"><span style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:8px;height:8px;border-radius:50%;background:${C.colors.green}"></span> ALLOW</span><span style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:8px;height:8px;border-radius:50%;background:${C.colors.amber}"></span> ESCALATE</span><span style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:8px;height:8px;border-radius:50%;background:${C.colors.red}"></span> CONTAIN</span><span class="card-pill active">24H</span></div></div>
@@ -60,7 +69,7 @@ const OverviewPage={
         </div>
       </div>
     </div>
-    <div class="g-3">
+    <div class="g-3" style="${k.totalRequests === 0 ? 'opacity:0.3;pointer-events:none' : ''}">
       <div class="card">
         <div class="card-head"><span class="card-t">Infrastructure Health</span></div>
         ${D.infra.map(i=>`
@@ -89,7 +98,7 @@ const OverviewPage={
         ${D.anomalies.map(a=>`<div class="alert-item"><div class="alert-dot ${a.sev==='high'?'red':'amber'}"></div><div class="alert-body"><div class="alert-title">${a.type}</div><div class="alert-desc">${a.agent}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><div class="alert-time">${a.time}</div><span class="badge badge-${a.sev==='high'?'high':'medium'}">${a.sev.charAt(0).toUpperCase()+a.sev.slice(1)}</span></div></div>`).join('')}
       </div>
     </div>
-    <div class="g-23 mb-0">
+    <div class="g-23 mb-0" style="${k.totalRequests === 0 ? 'opacity:0.3;pointer-events:none' : ''}">
       <div class="card">
         <div class="card-head"><span class="card-t">Drill Down: Authorization Pipeline</span></div>
         <div class="pipeline">

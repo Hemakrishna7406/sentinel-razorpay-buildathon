@@ -437,198 +437,68 @@ async def execution_stream():
     return StreamingResponse(broadcaster.subscribe(), media_type="text/event-stream")
 
 @app.post("/demo/scenarios/{scenario}")
-async def run_demo_scenario(scenario: str):
-    """Triggers demo scenarios and pipes them to SSE"""
-    intent_id = f"INT-{uuid.uuid4().hex[:6]}"
-    now = lambda: datetime.utcnow().isoformat() + "Z"
-    
-    # 1. INTENT Stage
-    await broadcaster.broadcast(SentinelExecutionEvent(
-        event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-        stage="INTENT"
-    ))
-    await asyncio.sleep(0.5)
+async def run_demo_scenario(scenario: str, count: int = 10):
+    """Triggers demo scenarios by injecting real intents into Kafka"""
+    import uuid
+    from datetime import datetime
+    import asyncio
+    from api.dependencies import kafka_producer
+    from core.config import settings
 
-    if scenario == "normal":
-        # 2. BEHAVIOR
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.05, semantic_risk=0.08
-        ))
-        await asyncio.sleep(0.5)
-        # 3. POLICY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="ALLOW"
-        ))
-        await asyncio.sleep(0.5)
-        # 4. CAPABILITY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=True, mcp_tool="create_order"
-        ))
-        await asyncio.sleep(0.5)
-        # 5. MCP
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=True
-        ))
-        await asyncio.sleep(0.5)
-        # 6. RAZORPAY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="RAZORPAY", execution_status="SUCCESS", provider_reference="order_TTW72yaNVN0zHe", latency_ms=620
-        ))
+    if not kafka_producer:
+        return {"status": "error", "message": "Kafka producer not initialized"}
+
+    intents = []
+    agent_id = f"demo-agent-{uuid.uuid4().hex[:4]}"
     
-    elif scenario == "abuse-burst":
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.91, semantic_risk=0.85
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="CONTAIN"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=False, reason_codes=["High behavioral drift (Velocity x31)"]
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="BLOCKED"
-        ))
+    for i in range(count):
+        intent_id = f"INT-{uuid.uuid4().hex[:6]}"
+        amount = 5000
+        context = {"scenario": scenario, "is_demo": True, "loss_label": 0}
         
-    elif scenario == "privilege-violation":
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.10, semantic_risk=0.15
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="ALLOW"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=True, mcp_tool="create_order"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="BLOCKED", reason_codes=["Action type mismatch (fetch_all_payouts requested)"]
-        ))
+        if scenario == "malicious":
+            # High amount + weird time
+            amount = 900000000
+            context["hour_of_day"] = 3
+            context["ip_address"] = "192.168.1.100"
+            context["country"] = "RU"
+        elif scenario == "abuse-burst":
+            # High velocity (same agent)
+            amount = 1000 + (i * 10)
+            context["velocity_1h"] = 50 + i
+        elif scenario == "privilege-violation":
+            context["action_type"] = "fetch_all_payouts"
+        elif scenario == "suspicious":
+            amount = 500000
+            
+        payload = {
+            "intent": {
+                "intent_id": intent_id,
+                "agent_id": agent_id,
+                "action_type": context.get("action_type", "create_payout"),
+                "amount": amount,
+                "currency": "INR",
+                "recipient": f"demo-recipient-{i}"
+            },
+            "context": context,
+            "agent_id": agent_id,
+            "mode": "govern",
+            "idempotency_key": f"idem-{intent_id}"
+        }
+        intents.append(payload)
 
-    elif scenario == "suspicious":
-        # 2. BEHAVIOR
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.71, semantic_risk=0.68
-        ))
-        await asyncio.sleep(0.5)
-        # 3. POLICY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="ESCALATE"
-        ))
-        await asyncio.sleep(0.5)
-        # 4. CAPABILITY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=False, reason_codes=["Amount exceeds 3σ from baseline - requires human review"]
-        ))
-        await asyncio.sleep(0.5)
-        # 5. MCP
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="ESCALATED"
-        ))
-
-    elif scenario == "malicious":
-        # 2. BEHAVIOR
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.94, semantic_risk=0.89
-        ))
-        await asyncio.sleep(0.5)
-        # 3. POLICY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="CONTAIN"
-        ))
-        await asyncio.sleep(0.5)
-        # 4. CAPABILITY
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkpoint-agent-01",
-            stage="CAPABILITY", capability_issued=False, reason_codes=["Severe behavioral anomaly + policy violation"]
-        ))
-        await asyncio.sleep(0.5)
-        # 5. MCP
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="CONTAINED"
-        ))
-
-    elif scenario == "replay":
-        # First request: ALLOW
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="BEHAVIOR", behavioral_risk=0.05, semantic_risk=0.08
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="POLICY", policy_decision="ALLOW"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=True, mcp_tool="create_order"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=True, execution_status="SUCCESS"
-        ))
-        await asyncio.sleep(1.0)
-        # Second request with same idempotency key: BLOCKED
-        intent_id_2 = f"INT-{uuid.uuid4().hex[:6]}"
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
-            stage="INTENT"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=False, reason_codes=["Idempotency: transaction already completed"]
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id_2, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="BLOCKED_REPLAY"
-        ))
-
-    elif scenario == "redis_failure":
-        # Simulated infrastructure failure
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="INTENT"
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="CAPABILITY", capability_issued=False, reason_codes=["Fail-closed: Redis unavailable"]
-        ))
-        await asyncio.sleep(0.5)
-        await broadcaster.broadcast(SentinelExecutionEvent(
-            event_id=uuid.uuid4().hex, timestamp=now(), intent_id=intent_id, agent_id="checkout-agent-01",
-            stage="MCP", mcp_invocation=False, execution_status="ESCALATED_INFRA_FAILURE"
-        ))
-
-    return {"status": "started", "scenario": scenario}
+    # Publish asynchronously with slight delays to simulate burst
+    async def inject_batch():
+        for payload in intents:
+            await kafka_producer.send_and_wait(
+                settings.KAFKA_INBOUND_TOPIC,
+                key=payload["agent_id"].encode('utf-8'),
+                value=json.dumps(payload).encode('utf-8')
+            )
+            await asyncio.sleep(0.1)
+            
+    asyncio.create_task(inject_batch())
+    return {"status": "started", "scenario": scenario, "injected_count": count}
 
 # ─────────────────────────────────────────────────────────────
 # NL POLICY MANAGEMENT

@@ -32,9 +32,6 @@ class TestDataGenerator:
             "recipient_novelty", "merchant_id", "agent_age_days",
             "hour_of_day", "time_since_previous_action",
             "rolling_1m_count", "rolling_1h_count", "rolling_24h_count",
-            "baseline_avg_amount", "baseline_std_amount",
-            "baseline_hourly_rate", "typical_hour_start", "typical_hour_end",
-            "historical_escalation_rate", "historical_denial_rate",
             "scenario_label", "loss_label", "loss_type", "has_sufficient_history"
         }
         assert set(default_df.columns) == expected_columns

@@ -45,5 +45,48 @@ const LiveAuthPage={
     const data=[280,310,295,340,330,315,327];
     this.ch.push(C.line('ch-live-throughput',labels,[C.areaDS('RPS',data,C.colors.blue)],{scales:{y:{min:200}}}));
     this.ch.push(C.doughnut('ch-live-donut',['Allow','Escalate','Contain'],[72.3,24.1,3.6],[C.colors.green,C.colors.amber,C.colors.red]));
+    
+    // Close existing EventSource if open
+    if(this.es) {
+      this.es.close();
+    }
+    
+    // Connect to real backend SSE
+    this.es = new EventSource('/execution/stream');
+    this.es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if(data.stage === 'POLICY' || data.stage === 'BEHAVIOR') {
+          // Format feed item
+          const isBehavior = data.stage === 'BEHAVIOR';
+          const decision = isBehavior ? (data.behavioral_risk > 0.85 ? 'CONTAIN' : (data.behavioral_risk > 0.15 ? 'ESCALATE' : 'ALLOW')) : data.policy_decision;
+          const cls = decision === 'ALLOW' ? 'allow' : decision === 'ESCALATE' ? 'escalate' : 'contain';
+          const risk = data.behavioral_risk || 0;
+          
+          const iconAllow = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+          const iconEscalate = '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/>';
+          const iconContain = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+          
+          const svgPath = decision === 'ALLOW' ? iconAllow : (decision === 'ESCALATE' ? iconEscalate : iconContain);
+          
+          const detail = isBehavior ? `Risk Fusion (B: ${data.behavioral_risk}, S: ${data.semantic_risk})` : `Policy Engine: ${data.policy_decision}`;
+          
+          const timeStr = new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+          
+          const html = `<div class="feed-item fade-in"><div class="feed-icon ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${svgPath}</svg></div><div class="feed-body"><div class="feed-head"><span class="feed-agent">${data.agent_id}</span><span class="feed-time">${timeStr}</span></div><div class="feed-detail">${data.stage} · ${detail}</div><div class="feed-tags"><span class="badge badge-${cls}">${decision}</span><span class="badge badge-neutral">Risk: ${risk.toFixed(2)}</span></div></div></div>`;
+          
+          const scrollDiv = document.querySelector('.card-scroll');
+          if(scrollDiv) {
+            scrollDiv.insertAdjacentHTML('afterbegin', html);
+            // Keep max 50 items
+            if(scrollDiv.children.length > 50) {
+              scrollDiv.lastElementChild.remove();
+            }
+          }
+        }
+      } catch(e) {
+        console.error('Error parsing SSE', e);
+      }
+    };
   }
 };

@@ -3,7 +3,7 @@
   "generator_seed": 42,
   "feature_version": "1.0",
   "model_version": "v1.0.0-xgb",
-  "created_at": "2026-08-23T06:03:30.164422Z",
+  "created_at": "2026-09-03T15:05:10.295330Z",
   "hyperparameters": {
     "objective": "binary:logistic",
     "eval_metric": "aucpr",
@@ -14,8 +14,8 @@
     "learning_rate": 0.05
   },
   "thresholds": {
-    "suspicious": 0.827090859413147,
-    "high_risk": 1.0
+    "suspicious": 0.2076801359653473,
+    "high_risk": 0.4076801359653473
   },
   "train_range": {
     "days": [
@@ -62,39 +62,42 @@
     ]
   },
   "metrics": {
-    "aucpr": 1.0,
-    "roc_auc": 1.0,
-    "brier_score": 0.029903755218068425,
-    "precision": 1.0,
+    "aucpr": 0.7531950281526179,
+    "roc_auc": 0.41517206218786085,
+    "brier_score": 0.338234543800354,
+    "precision": 0.7784834737524303,
     "recall": 1.0,
-    "false_escalation_rate": 0.0,
+    "false_escalation_rate": 1.0,
     "unsafe_auto_approval_rate": 0.0,
-    "tp": 246,
-    "fp": 0,
-    "tn": 1838,
+    "tp": 6006,
+    "fp": 1709,
+    "tn": 0,
     "fn": 0
   },
   "calibration": {
     "prob_true": [
-      0.0,
-      0.0,
-      1.0
+      0.8521739130434782,
+      0.8460747343160782,
+      0.6479357798165137,
+      0.7558197127290738
     ],
     "prob_pred": [
-      0.17290988564491272,
-      0.20572273433208466,
-      0.827090859413147
+      0.27999232434420196,
+      0.3106623028580931,
+      0.48382046350508656,
+      0.5302620469018219
     ],
     "counts": [
-      1837,
-      1,
-      246
+      1035,
+      2917,
+      1744,
+      2019
     ]
   },
   "environment": {
-    "cpu": "",
-    "ram_gb": "7.58",
-    "python_version": "3.10.21",
-    "os": "Linux"
+    "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "ram_gb": "15.65",
+    "python_version": "3.14.3",
+    "os": "Windows"
   }
 }

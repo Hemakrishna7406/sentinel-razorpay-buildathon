@@ -144,14 +144,6 @@ def _generate_intent_row(
         "rolling_1h_count": count_1h,
         "rolling_24h_count": count_24h,
         
-        "baseline_avg_amount": agent.baseline_avg_amount,
-        "baseline_std_amount": agent.baseline_std_amount,
-        "baseline_hourly_rate": agent.baseline_hourly_rate,
-        "typical_hour_start": agent.typical_hour_start,
-        "typical_hour_end": agent.typical_hour_end,
-        "historical_escalation_rate": agent.historical_escalation_rate,
-        "historical_denial_rate": agent.historical_denial_rate,
-        
         "scenario_label": agent.scenario.name,
         "loss_label": actual_loss_label,
         "loss_type": agent.scenario.loss_type.value if actual_loss_label == 1 and agent.scenario.loss_type else None,

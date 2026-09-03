@@ -23,22 +23,40 @@ const DemoScenariosPage={
   },
   mount(){
     document.querySelectorAll('.scenario-card').forEach(card=>{
-      card.addEventListener('click',()=>{
+      card.addEventListener('click', async ()=>{
         const name=card.dataset.scenario;
         const out=document.getElementById('sim-output');
-        const total=Math.floor(Math.random()*200)+50;
-        const allowed=Math.floor(total*0.65);
-        const escalated=Math.floor(total*0.28);
-        const contained=total-allowed-escalated;
-        const avgRisk=(Math.random()*0.4+0.2).toFixed(3);
-        out.innerHTML=`<div style="display:flex;gap:16px;margin-bottom:16px">
-          <div class="metric-tile" style="flex:1"><div class="metric-tile-val">${total}</div><div class="metric-tile-lbl">Total</div></div>
-          <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--green)">${allowed}</div><div class="metric-tile-lbl">Allowed</div></div>
-          <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--amber)">${escalated}</div><div class="metric-tile-lbl">Escalated</div></div>
-          <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--red)">${contained}</div><div class="metric-tile-lbl">Contained</div></div>
-          <div class="metric-tile" style="flex:1"><div class="metric-tile-val">${avgRisk}</div><div class="metric-tile-lbl">Avg Risk</div></div>
-        </div>
-        <div style="padding:12px;background:var(--green-bg);border-radius:var(--radius-md);font-size:.7rem;color:var(--green);font-weight:500;text-align:center">✓ Scenario "${name}" completed — ${contained} threats contained, 0 false opens</div>`;
+        out.innerHTML = `<div class="empty" style="animation: pulse 2s infinite;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;margin-bottom:12px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="font-size:.75rem;color:var(--text-tertiary)">Injecting ${name} into Kafka... Please wait</div></div>`;
+        
+        try {
+            await ApiClient.post(`/demo/scenarios/${name}?count=50`);
+            
+            // Wait a few seconds for the worker and audit consumer to process
+            setTimeout(async () => {
+                try {
+                    const stats = await ApiClient.get('/api/analytics/stats');
+                    
+                    const total = stats.total_intents || 0;
+                    const allowed = stats.decisions.ALLOW || 0;
+                    const escalated = stats.decisions.ESCALATE || 0;
+                    const contained = stats.decisions.CONTAIN || 0;
+                    const avgRisk = (stats.average_risk || 0).toFixed(3);
+                    
+                    out.innerHTML=`<div style="display:flex;gap:16px;margin-bottom:16px">
+                      <div class="metric-tile" style="flex:1"><div class="metric-tile-val">${total}</div><div class="metric-tile-lbl">DB Total</div></div>
+                      <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--green)">${allowed}</div><div class="metric-tile-lbl">Allowed</div></div>
+                      <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--amber)">${escalated}</div><div class="metric-tile-lbl">Escalated</div></div>
+                      <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--red)">${contained}</div><div class="metric-tile-lbl">Contained</div></div>
+                      <div class="metric-tile" style="flex:1"><div class="metric-tile-val">${avgRisk}</div><div class="metric-tile-lbl">Avg Risk</div></div>
+                    </div>
+                    <div style="padding:12px;background:var(--green-bg);border-radius:var(--radius-md);font-size:.7rem;color:var(--green);font-weight:500;text-align:center">✓ Scenario "${name}" injected! View Audit Ledger for real-time results.</div>`;
+                } catch(e) {
+                    out.innerHTML = `<div class="empty" style="color:var(--red)">Failed to fetch updated stats. Is the backend running?</div>`;
+                }
+            }, 3000);
+        } catch(e) {
+            out.innerHTML = `<div class="empty" style="color:var(--red)">Failed to trigger scenario: ${e.message}</div>`;
+        }
       });
     });
   }
