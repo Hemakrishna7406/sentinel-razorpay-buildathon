@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["ml", "api", "security", "worker", "execution", "observability"]
+packages = ["ml", "api", "security", "worker", "execution", "observability", "infrastructure"]
 
 [project]
 name = "sentinel"
@@ -23,6 +23,7 @@ dependencies = [
     "redis>=5.0",
     "httpx>=0.25",
     "python-dotenv>=1.0",
+    "pybreaker>=1.0",
 ]
 
 [project.optional-dependencies]

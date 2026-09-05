@@ -1,0 +1,15 @@
+apiVersion: v2
+name: sentinel
+description: Sentinel - ML-Powered Authorization Gateway for Razorpay
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - sentinel
+  - authorization
+  - ml
+  - razorpay
+  - security
+maintainers:
+  - name: Sentinel Team
+    email: sentinel@razorpay.com

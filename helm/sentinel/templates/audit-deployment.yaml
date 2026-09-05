@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.audit.name }}
+  labels:
+    app: sentinel
+    component: audit
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.audit.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: sentinel
+      component: audit
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: sentinel
+        component: audit
+        release: {{ .Release.Name }}
+      annotations:
+        {{- toYaml .Values.audit.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.audit.securityContext | nindent 8 }}
+      containers:
+      - name: audit
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.audit.image.repository }}:{{ .Values.audit.image.tag }}"
+        imagePullPolicy: {{ .Values.audit.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: 8002
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: sentinel-secrets
+              key: database-url
+        - name: KAFKA_BROKER
+          value: "{{ .Release.Name }}-kafka:9092"
+        - name: KAFKA_EVALUATED_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-config
+              key: KAFKA_EVALUATED_TOPIC
+        - name: LOG_LEVEL
+          value: {{ .Values.audit.env.LOG_LEVEL | quote }}
+        - name: ENVIRONMENT
+          value: {{ .Values.global.environment | quote }}
+        - name: JSON_LOGS
+          value: {{ .Values.audit.env.JSON_LOGS | quote }}
+        - name: AUDIT_METRICS_PORT
+          value: {{ .Values.audit.env.AUDIT_METRICS_PORT | quote }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ .Values.observability.jaeger.endpoint | quote }}
+        - name: OTEL_SERVICE_NAME
+          value: {{ .Values.audit.env.OTEL_SERVICE_NAME | quote }}
+        resources:
+          {{- toYaml .Values.audit.resources | nindent 10 }}
+      terminationGracePeriodSeconds: 30

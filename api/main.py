@@ -55,7 +55,10 @@ from api.dependencies import (
     get_policy_engine,
     get_model,
     get_db,
-    ModelWrapper
+    ModelWrapper,
+    require_api_key,
+    require_admin_key,
+    optional_api_key
 )
 from security.exceptions import SentinelSecurityException
 from security.capability_token import IntentContext
@@ -160,7 +163,8 @@ async def evaluate_intent_sync(
     request: Request,
     intent: IntentRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
-    mode: str = Header("govern", alias="X-Sentinel-Mode")
+    mode: str = Header("govern", alias="X-Sentinel-Mode"),
+    api_key: str = Depends(require_api_key)
 ):
     """
     Fast Path Synchronous Evaluation.
@@ -316,7 +320,8 @@ async def evaluate_intent_async(
     request: Request,
     intent: IntentRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
-    mode: str = Header("govern", alias="X-Sentinel-Mode")
+    mode: str = Header("govern", alias="X-Sentinel-Mode"),
+    api_key: str = Depends(require_api_key)
 ):
     """
     Async Path Evaluation.
@@ -365,7 +370,8 @@ async def evaluate_intent_async(
 @app.post("/execute", response_model=ExecuteResponse)
 async def execute_intent(
     req: ExecuteRequest,
-    idempotency_key: str = Header(..., alias="Idempotency-Key")
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    api_key: str = Depends(require_api_key)
 ):
     """
     Execution Gateway Endpoint.
@@ -437,7 +443,11 @@ async def execution_stream():
     return StreamingResponse(broadcaster.subscribe(), media_type="text/event-stream")
 
 @app.post("/demo/scenarios/{scenario}")
-async def run_demo_scenario(scenario: str, count: int = 10):
+async def run_demo_scenario(
+    scenario: str,
+    count: int = 10,
+    api_key: str = Depends(optional_api_key)
+):
     """Triggers demo scenarios by injecting real intents into Kafka"""
     import uuid
     from datetime import datetime
@@ -513,6 +523,7 @@ async def get_execution_provider():
 def add_policy_rule(
     req: PolicyRuleRequest,
     policy_engine = Depends(get_policy_engine),
+    admin_key: str = Depends(require_admin_key)
 ):
     """Add a natural language policy rule. Example: 'ESCALATE IF amount > 5000000'"""
     try:
@@ -528,7 +539,11 @@ def list_policy_rules(policy_engine = Depends(get_policy_engine)):
     return [PolicyRuleResponse(rule_id=r["rule_id"], text=r["text"]) for r in rules]
 
 @app.delete("/policy/rules/{rule_id}")
-def delete_policy_rule(rule_id: str, policy_engine = Depends(get_policy_engine)):
+def delete_policy_rule(
+    rule_id: str,
+    policy_engine = Depends(get_policy_engine),
+    admin_key: str = Depends(require_admin_key)
+):
     """Delete a policy rule by ID."""
     removed = policy_engine.nl_compiler.remove_rule(rule_id)
     if not removed:
@@ -544,6 +559,7 @@ def run_simulation(
     req: SimulateRequest,
     model_wrapper: ModelWrapper = Depends(get_model),
     policy_engine = Depends(get_policy_engine),
+    api_key: str = Depends(require_api_key)
 ):
     from ml.data_generator import generate_dataset
     
@@ -652,7 +668,11 @@ def serve_dashboard():
 
 @app.get("/api/audit")
 @app.get("/audit", tags=["audit"])
-def get_audit_log(limit: int = 50, db: Session = Depends(get_db)):
+def get_audit_log(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    admin_key: str = Depends(require_admin_key)
+):
     from db.models import AuditRecord
     records = db.query(AuditRecord).order_by(AuditRecord.id.desc()).limit(limit).all()
     return [
@@ -678,7 +698,10 @@ def get_audit_log(limit: int = 50, db: Session = Depends(get_db)):
     ]
 
 @app.get("/audit/verify")
-def verify_audit_log(db: Session = Depends(get_db)):
+def verify_audit_log(
+    db: Session = Depends(get_db),
+    admin_key: str = Depends(require_admin_key)
+):
     """Verify every persisted audit record from genesis to the newest entry."""
     from db.models import AuditRecord
     from security.audit_chain import verify_audit_chain
@@ -688,7 +711,10 @@ def verify_audit_log(db: Session = Depends(get_db)):
     return {"status": "PASS" if valid else "FAIL", "records_checked": checked, "invalid_record_ids": invalid_ids}
 
 @app.get("/api/security/invariants", tags=["security"])
-def get_security_invariants(db: Session = Depends(get_db)):
+def get_security_invariants(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(optional_api_key)
+):
     """
     Security invariant metrics: compute from audit log.
 

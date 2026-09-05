@@ -25,10 +25,19 @@ logger = logging.getLogger(__name__)
 # 1. Configuration
 DB_URL = settings.DATABASE_URL
 REDIS_URL = settings.REDIS_URL
-DB_POOL_SIZE = settings.DB_POOL_SIZE
-DB_MAX_OVERFLOW = settings.DB_MAX_OVERFLOW
+# Production-tuned database pool for 10K TPS (Phase 23)
+DB_POOL_SIZE = settings.DB_POOL_SIZE if settings.DB_POOL_SIZE != 20 else 100
+DB_MAX_OVERFLOW = settings.DB_MAX_OVERFLOW if settings.DB_MAX_OVERFLOW != 10 else 50
 IDEMPOTENCY_TTL = settings.IDEMPOTENCY_TTL_SECONDS
 BEHAVIORAL_WINDOW = settings.BEHAVIORAL_WINDOW_SECONDS
+
+# Production validation (Phase 23)
+if settings.ENVIRONMENT == "production":
+    if "sqlite" in DB_URL:
+        raise RuntimeError(
+            "SQLite not allowed in production. Use PostgreSQL for production deployments. "
+            "Set DATABASE_URL to a PostgreSQL connection string."
+        )
 
 # 2. Database Engine
 engine_args = {}
@@ -114,6 +123,7 @@ rate_limiter = None
 
 async def init_app_state():
     global redis_client, kafka_producer, global_model, policy_engine, execution_adapter, idempotency_engine
+    from infrastructure.circuit_breakers import redis_with_breaker, kafka_with_breaker
 
     if settings.ENVIRONMENT == "production":
         if not settings.API_KEY:
@@ -126,13 +136,27 @@ async def init_app_state():
                 "Demo endpoints can inject arbitrary intents into the evaluation pipeline."
             )
 
-    # Init Redis (async)
-    redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+    # Init Redis (async) with circuit breaker protection (Phase 23)
+    try:
+        redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        # Test connection with circuit breaker
+        await redis_with_breaker(lambda: redis_client.ping())
+        logger.info("Redis connection established with circuit breaker protection")
+    except Exception as e:
+        logger.error(f"Redis initialization failed: {e}")
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError(f"Critical: Redis unavailable in production: {e}")
     
-    # Init Kafka Producer
+    # Init Kafka Producer with circuit breaker protection (Phase 23)
     kafka_broker = settings.KAFKA_BROKER
-    kafka_producer = AIOKafkaProducer(bootstrap_servers=kafka_broker)
-    await kafka_producer.start()
+    try:
+        kafka_producer = AIOKafkaProducer(bootstrap_servers=kafka_broker)
+        await kafka_with_breaker(lambda: kafka_producer.start())
+        logger.info("Kafka producer started with circuit breaker protection")
+    except Exception as e:
+        logger.error(f"Kafka initialization failed: {e}")
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError(f"Critical: Kafka unavailable in production: {e}")
     
     # Init Model
     global_model = ModelWrapper()
@@ -208,3 +232,77 @@ def get_rate_limiter():
     if not rate_limiter:
         raise SentinelSecurityException("Rate limiter unavailable. Failing closed.")
     return rate_limiter
+
+
+# --- Authentication Dependencies ---
+
+from fastapi import Header, HTTPException
+from typing import Optional as OptionalType
+
+
+async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> str:
+    """
+    Require valid API key for agent endpoints.
+
+    Raises HTTPException(403) if key is invalid or missing.
+    """
+    if settings.ENVIRONMENT == "development" and not settings.API_KEY:
+        # In development without API_KEY set, allow requests (backward compat)
+        logger.warning("API_KEY not set in development mode - authentication bypassed")
+        return "dev-bypass"
+
+    if not settings.API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="API authentication not configured. Failing closed."
+        )
+
+    if x_api_key != settings.API_KEY:
+        logger.warning(f"Invalid API key attempted: {x_api_key[:8]}...")
+        raise HTTPException(status_code=403, detail="Invalid API key")
+
+    return x_api_key
+
+
+async def require_admin_key(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> str:
+    """
+    Require valid admin API key for privileged endpoints.
+
+    Raises HTTPException(403) if key is invalid or missing.
+    """
+    if settings.ENVIRONMENT == "development" and not settings.ADMIN_API_KEY:
+        # In development without ADMIN_API_KEY set, allow requests (backward compat)
+        logger.warning("ADMIN_API_KEY not set in development mode - authentication bypassed")
+        return "dev-bypass"
+
+    if not settings.ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Admin authentication not configured. Failing closed."
+        )
+
+    if x_admin_key != settings.ADMIN_API_KEY:
+        logger.warning(f"Invalid admin key attempted: {x_admin_key[:8]}...")
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    return x_admin_key
+
+
+async def optional_api_key(x_api_key: OptionalType[str] = Header(None, alias="X-API-Key")) -> OptionalType[str]:
+    """
+    Optional API key for demo/public endpoints.
+
+    If ENABLE_DEMO_ENDPOINTS is False, requires valid API key.
+    If True (development only), allows unauthenticated access.
+    """
+    # In production, ENABLE_DEMO_ENDPOINTS must be False (enforced in init_app_state)
+    if not settings.ENABLE_DEMO_ENDPOINTS:
+        # Demo endpoints disabled - require API key
+        if not x_api_key or x_api_key != settings.API_KEY:
+            raise HTTPException(
+                status_code=403,
+                detail="Demo endpoints disabled. Valid API key required."
+            )
+
+    # If we reach here, either ENABLE_DEMO_ENDPOINTS=True or valid key provided
+    return x_api_key

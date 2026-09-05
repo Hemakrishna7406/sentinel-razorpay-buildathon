@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     KAFKA_INBOUND_TOPIC: str = Field("intents.inbound", description="Topic for incoming intents")
     KAFKA_EVALUATED_TOPIC: str = Field("intents.evaluated", description="Topic for evaluated intents")
 
+    # Security & Authentication
+    API_KEY: str = Field("", description="API key for agent endpoints. Required in production.")
+    ADMIN_API_KEY: str = Field("", description="Admin API key for policy management. Required in production.")
+    ENABLE_DEMO_ENDPOINTS: bool = Field(False, description="Enable demo scenario injection. MUST be False in production.")
+
     # Database
     DATABASE_URL: str = Field("sqlite:///./sentinel.db", description="SQLAlchemy DB URL")
     DB_POOL_SIZE: int = Field(20, description="Database connection pool size")

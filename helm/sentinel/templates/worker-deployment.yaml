@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.worker.name }}
+  labels:
+    app: sentinel
+    component: worker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: sentinel
+      component: worker
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: sentinel
+        component: worker
+        release: {{ .Release.Name }}
+      annotations:
+        {{- toYaml .Values.worker.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.worker.securityContext | nindent 8 }}
+      containers:
+      - name: worker
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+        imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: 8001
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: sentinel-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: sentinel-secrets
+              key: redis-url
+        - name: KAFKA_BROKER
+          value: "{{ .Release.Name }}-kafka:9092"
+        - name: KAFKA_INBOUND_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-config
+              key: KAFKA_INBOUND_TOPIC
+        - name: KAFKA_EVALUATED_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-config
+              key: KAFKA_EVALUATED_TOPIC
+        - name: LOG_LEVEL
+          value: {{ .Values.worker.env.LOG_LEVEL | quote }}
+        - name: ENVIRONMENT
+          value: {{ .Values.global.environment | quote }}
+        - name: JSON_LOGS
+          value: {{ .Values.worker.env.JSON_LOGS | quote }}
+        - name: INFERENCE_BACKEND
+          value: {{ .Values.worker.inferenceBackend | quote }}
+        - name: XGB_NTHREAD
+          value: {{ .Values.worker.xgbNThread | quote }}
+        - name: MAX_CONCURRENT_TASKS
+          value: {{ .Values.worker.maxConcurrentTasks | quote }}
+        - name: METRICS_PORT
+          value: {{ .Values.worker.env.METRICS_PORT | quote }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ .Values.observability.jaeger.endpoint | quote }}
+        - name: OTEL_SERVICE_NAME
+          value: {{ .Values.worker.env.OTEL_SERVICE_NAME | quote }}
+        - name: MLFLOW_TRACKING_URI
+          value: {{ .Values.mlflow.trackingUri | quote }}
+        - name: CAPABILITY_SIGNING_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sentinel-secrets
+              key: capability-signing-key
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 10 }}
+      terminationGracePeriodSeconds: 45

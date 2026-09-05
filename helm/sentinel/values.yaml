@@ -1,0 +1,354 @@
+# Default values for Sentinel Helm Chart
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  environment: production
+  imageRegistry: docker.io
+  imagePullSecrets: []
+
+# API Service Configuration
+api:
+  name: sentinel-api
+  replicaCount: 3
+  image:
+    repository: sentinel/api
+    tag: latest
+    pullPolicy: Always
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8000
+    annotations: {}
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  livenessProbe:
+    httpGet:
+      path: /health/live
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /health/live
+      port: 8000
+    failureThreshold: 30
+    periodSeconds: 10
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+
+  podAntiAffinity:
+    enabled: true
+    weight: 100
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    OTEL_SERVICE_NAME: "sentinel-api"
+
+# Worker Service Configuration
+worker:
+  name: sentinel-worker
+  replicaCount: 5
+  image:
+    repository: sentinel/worker
+    tag: latest
+    pullPolicy: Always
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 85
+
+  maxConcurrentTasks: 32
+  inferenceBackend: "cpu"
+  xgbNThread: "4"
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8001"
+    prometheus.io/path: "/metrics"
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    INFERENCE_BACKEND: "cpu"
+    XGB_NTHREAD: "4"
+    MAX_CONCURRENT_TASKS: "32"
+    METRICS_PORT: "8001"
+    OTEL_SERVICE_NAME: "sentinel-worker"
+
+# Audit Consumer Configuration
+audit:
+  name: sentinel-audit
+  replicaCount: 2
+  image:
+    repository: sentinel/audit
+    tag: latest
+    pullPolicy: Always
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8002"
+    prometheus.io/path: "/metrics"
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    AUDIT_METRICS_PORT: "8002"
+    OTEL_SERVICE_NAME: "sentinel-audit"
+
+# Redis Configuration
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: sentinel-secrets
+    existingSecretPasswordKey: redis-password
+
+  master:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 8Gi
+
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 8Gi
+
+  sentinel:
+    enabled: true
+    quorum: 2
+
+# Kafka Configuration
+kafka:
+  enabled: true
+  replicaCount: 3
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  persistence:
+    enabled: true
+    size: 20Gi
+
+  zookeeper:
+    enabled: true
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  # Topic configuration
+  topics:
+    - name: intents.inbound
+      partitions: 4
+      replicationFactor: 3
+    - name: intents.evaluated
+      partitions: 4
+      replicationFactor: 3
+    - name: audit.trail
+      partitions: 2
+      replicationFactor: 3
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  auth:
+    username: sentinel
+    database: sentinel
+    existingSecret: sentinel-secrets
+    secretKeys:
+      adminPasswordKey: postgres-admin-password
+      userPasswordKey: postgres-password
+
+  primary:
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 50Gi
+
+  readReplicas:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 50Gi
+
+  metrics:
+    enabled: true
+
+# MLflow Configuration
+mlflow:
+  enabled: true
+  trackingUri: "http://mlflow:5000"
+  artifactRoot: "s3://sentinel-mlflow-artifacts"
+
+# Observability
+observability:
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+
+  jaeger:
+    enabled: true
+    endpoint: "http://jaeger-collector:4317"
+
+  grafana:
+    enabled: true
+    dashboards:
+      enabled: true
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: sentinel
+
+# Security
+security:
+  podSecurityPolicy:
+    enabled: false
+  networkPolicy:
+    enabled: true
+    policyTypes:
+      - Ingress
+      - Egress
+
+# ConfigMap for application settings
+configMap:
+  create: true
+  data:
+    KAFKA_INBOUND_TOPIC: "intents.inbound"
+    KAFKA_EVALUATED_TOPIC: "intents.evaluated"
+    DB_POOL_SIZE: "100"
+    DB_MAX_OVERFLOW: "50"
+    IDEMPOTENCY_TTL_SECONDS: "86400"
+    BEHAVIORAL_WINDOW_SECONDS: "5"
+
+# Secrets (template only - values injected at deploy time)
+secrets:
+  create: true
+  # These are templates - actual secrets should be managed via sealed-secrets or external secret operator
+  # DATABASE_URL: ""
+  # REDIS_URL: ""
+  # CAPABILITY_SIGNING_KEY: ""
+  # API_KEY: ""
+  # ADMIN_API_KEY: ""
+  # RAZORPAY_KEY_ID: ""
+  # RAZORPAY_KEY_SECRET: ""
