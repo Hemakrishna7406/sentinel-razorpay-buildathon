@@ -11,7 +11,13 @@ const App={
     'observability': {m:ObservabilityPage,      t:'Observability',      s:'Metrics, traces, logs, and dependency health monitoring'},
     'settings':      {m:SettingsPage,           t:'Settings',           s:'Configure profile, notifications, security, and system parameters'}
   },
+  initTheme(){
+    // Initialize theme from localStorage or default to light
+    const savedTheme = localStorage.getItem('sentinel-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  },
   async init(){
+    this.initTheme();
     window.addEventListener('hashchange',()=>this.route());
     if(!location.hash||location.hash==='#/') location.hash='#/login';
     else this.route();
@@ -31,6 +37,7 @@ const App={
       pageEl.innerHTML=`<div class="app-shell">${Sidebar.render(h)}<div class="main-wrap">${Header.render(p.t,p.s)}<div class="page fade-in">${p.m.render()}</div></div></div>`;
       pageEl.style.opacity='1';
       Sidebar.bind();
+      Header.mount();
       p.m.mount();
       document.title='Sentinel — '+p.t;
     },80);

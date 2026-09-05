@@ -1,67 +1,57 @@
 :root {
-    /* ========== PREMIUM DARK BACKGROUNDS (Razorpay-style) ========== */
-    --bg-page: #0d0d1a;
-    --bg-card: #14141f;
-    --bg-card-elevated: #1a1a28;
-    --bg-sidebar: #0a0a12;
-    --bg-sidebar-hover: rgba(84, 105, 212, 0.08);
-    --bg-sidebar-active: rgba(84, 105, 212, 0.15);
-    --bg-header: rgba(20, 20, 31, 0.95);
+    /* ========== BACKGROUNDS ========== */
+    --bg-page: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --bg-sidebar: #09090b; /* Shadcn Zinc 950 */
+    --bg-sidebar-hover: rgba(255, 255, 255, 0.1);
+    --bg-sidebar-active: rgba(255, 255, 255, 0.15);
+    --bg-header: rgba(255, 255, 255, 0.95);
     --bg-login: #09090b;
 
-    /* ========== RAZORPAY BLUE BRAND ========== */
-    --blue: #5469d4;
-    --blue-hover: #3f51b5;
-    --blue-light: rgba(84, 105, 212, 0.1);
-    --blue-glow: rgba(84, 105, 212, 0.25);
-    --blue-gradient: linear-gradient(135deg, #5469d4 0%, #6b7fd9 100%);
-    --blue-glow-strong: rgba(84, 105, 212, 0.4);
+    /* ========== BRAND COLORS ========== */
+    --blue: #2563EB;
+    --blue-hover: #1D4ED8;
+    --blue-light: rgba(37,99,235,0.07);
+    --blue-glow: rgba(37,99,235,0.12);
+    --blue-gradient: linear-gradient(135deg, #2563EB, #3b82f6);
 
-    /* ========== STATUS COLORS (Enhanced) ========== */
-    --green: #10b981;
-    --green-bg: rgba(16, 185, 129, 0.12);
-    --green-glow: rgba(16, 185, 129, 0.2);
-    --amber: #f59e0b;
-    --amber-bg: rgba(245, 158, 11, 0.12);
-    --amber-glow: rgba(245, 158, 11, 0.2);
+    /* ========== STATUS COLORS ========== */
+    --green: #10B981;
+    --green-bg: rgba(16,185,129,0.1);
+    --amber: #F59E0B;
+    --amber-bg: rgba(245,158,11,0.1);
     --red: #ef4444;
-    --red-bg: rgba(239, 68, 68, 0.12);
-    --red-glow: rgba(239, 68, 68, 0.2);
+    --red-bg: rgba(239,68,68,0.1);
 
-    /* ========== REFINED TEXT COLORS ========== */
-    --navy: #0a0a12;
-    --text-primary: #e8eaf0;
-    --text-secondary: #8b8d98;
-    --text-tertiary: #5a5c66;
-    --text-inverse: #0d0d1a;
-    --text-sidebar: #797a85;
-    --text-sidebar-active: #ffffff;
+    /* ========== TEXT ========== */
+    --navy: #09090b;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
+    --text-inverse: #ffffff;
+    --text-sidebar: #a1a1aa; /* Shadcn Zinc 400 */
+    --text-sidebar-active: #fafafa; /* Shadcn Zinc 50 */
 
-    /* ========== PREMIUM BORDERS WITH GLOW ========== */
-    --border: rgba(255, 255, 255, 0.08);
-    --border-light: rgba(255, 255, 255, 0.04);
-    --border-focus: rgba(84, 105, 212, 0.4);
-    --ring: rgba(84, 105, 212, 0.3);
+    /* ========== BORDERS ========== */
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --ring: rgba(37,99,235,0.3);
 
-    /* ========== MULTI-LAYER PREMIUM SHADOWS ========== */
-    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-    --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(84, 105, 212, 0.1);
-    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-glow: 0 0 0 1px var(--border-focus), 0 0 16px var(--blue-glow), 0 4px 16px rgba(84, 105, 212, 0.15);
-    --shadow-glow-sm: 0 0 8px var(--blue-glow), 0 2px 8px rgba(84, 105, 212, 0.12);
-    --shadow-glow-green: 0 0 12px var(--green-glow), 0 2px 8px rgba(16, 185, 129, 0.15);
-    --shadow-glow-red: 0 0 12px var(--red-glow), 0 2px 8px rgba(239, 68, 68, 0.15);
+    /* ========== PRO MAX SHADOWS (Shadcn-like) ========== */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-card-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-glow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--ring);
 
-    /* ========== ENHANCED GLASSMORPHISM ========== */
-    --glass: rgba(20, 20, 31, 0.7);
-    --glass-blur: blur(24px) saturate(180%);
-    --glass-blur-strong: blur(32px) saturate(200%);
+    /* ========== GLASS ========== */
+    --glass: rgba(255,255,255,0.85);
+    --glass-blur: blur(24px);
 
-    /* ========== REFINED TYPOGRAPHY ========== */
+    /* ========== TYPOGRAPHY ========== */
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --mono: 'SF Mono','Fira Code','Cascadia Code', monospace;
 
     /* ========== LAYOUT ========== */
     --sidebar-w: 260px;
@@ -76,9 +66,61 @@
     --radius-2xl: 1.5rem;
     --radius-full: 9999px;
 
-    /* ========== PREMIUM MOTION ========== */
-    --ease: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-    --ease-spring: 350ms cubic-bezier(0.175, 0.885, 0.32, 1.175);
-    --ease-smooth: 450ms cubic-bezier(0.33, 1, 0.68, 1);
-    --ease-in-out: 300ms cubic-bezier(0.65, 0, 0.35, 1);
+    /* ========== MOTION ========== */
+    --ease: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --ease-smooth: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========== DARK MODE ========== */
+[data-theme="dark"] {
+    /* ========== BACKGROUNDS ========== */
+    --bg-page: #0d0d1a;
+    --bg-card: #14141f;
+    --bg-sidebar: #09090b;
+    --bg-sidebar-hover: rgba(255, 255, 255, 0.1);
+    --bg-sidebar-active: rgba(255, 255, 255, 0.15);
+    --bg-header: rgba(20, 20, 31, 0.95);
+    --bg-login: #09090b;
+
+    /* ========== BRAND COLORS ========== */
+    --blue: #5469d4;
+    --blue-hover: #6b7fe0;
+    --blue-light: rgba(84,105,212,0.1);
+    --blue-glow: rgba(84,105,212,0.15);
+    --blue-gradient: linear-gradient(135deg, #5469d4, #667eea);
+
+    /* ========== STATUS COLORS ========== */
+    --green: #10B981;
+    --green-bg: rgba(16,185,129,0.12);
+    --amber: #F59E0B;
+    --amber-bg: rgba(245,158,11,0.12);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.12);
+
+    /* ========== TEXT ========== */
+    --navy: #fafafa;
+    --text-primary: #fafafa;
+    --text-secondary: #8b8d98;
+    --text-tertiary: #6b6d76;
+    --text-inverse: #0f172a;
+    --text-sidebar: #a1a1aa;
+    --text-sidebar-active: #fafafa;
+
+    /* ========== BORDERS ========== */
+    --border: rgba(255,255,255,0.08);
+    --border-light: rgba(255,255,255,0.04);
+    --ring: rgba(84,105,212,0.3);
+
+    /* ========== PRO MAX SHADOWS (Dark) ========== */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
+    --shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.25), 0 1px 2px -1px rgb(0 0 0 / 0.25);
+    --shadow-card: 0 2px 8px 0 rgb(0 0 0 / 0.3), 0 0 0 1px rgba(255,255,255,0.05);
+    --shadow-card-hover: 0 8px 24px -4px rgb(0 0 0 / 0.4), 0 0 0 1px rgba(84,105,212,0.2);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+    --shadow-glow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--ring);
+
+    /* ========== GLASS ========== */
+    --glass: rgba(20,20,31,0.85);
+    --glass-blur: blur(24px) saturate(180%);
 }

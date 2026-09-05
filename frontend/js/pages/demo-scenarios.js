@@ -30,13 +30,12 @@ const DemoScenariosPage={
         
         try {
             const res = await fetch(`/demo/scenarios/${name}?count=50`, { method: 'POST' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error('Backend not available');
 
             // Wait a few seconds for the worker and audit consumer to process
             setTimeout(async () => {
                 try {
                     const statsRes = await fetch('/api/analytics/stats');
-                    if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
                     const stats = await statsRes.json();
 
                     const total = stats.total_intents || 0;
@@ -44,7 +43,7 @@ const DemoScenariosPage={
                     const escalated = stats.decisions.ESCALATE || 0;
                     const contained = stats.decisions.CONTAIN || 0;
                     const avgRisk = (stats.average_risk || 0).toFixed(3);
-                    
+
                     out.innerHTML=`<div style="display:flex;gap:16px;margin-bottom:16px">
                       <div class="metric-tile" style="flex:1"><div class="metric-tile-val">${total}</div><div class="metric-tile-lbl">DB Total</div></div>
                       <div class="metric-tile" style="flex:1"><div class="metric-tile-val" style="color:var(--green)">${allowed}</div><div class="metric-tile-lbl">Allowed</div></div>
@@ -54,11 +53,11 @@ const DemoScenariosPage={
                     </div>
                     <div style="padding:12px;background:var(--green-bg);border-radius:var(--radius-md);font-size:.7rem;color:var(--green);font-weight:500;text-align:center">✓ Scenario "${name}" injected! View Audit Ledger for real-time results.</div>`;
                 } catch(e) {
-                    out.innerHTML = `<div class="empty" style="color:var(--red)">Failed to fetch updated stats. Is the backend running?</div>`;
+                    out.innerHTML = `<div class="empty" style="color:var(--red)">Backend not running. Demo scenarios require the backend server.</div>`;
                 }
             }, 3000);
         } catch(e) {
-            out.innerHTML = `<div class="empty" style="color:var(--red)">Failed to trigger scenario: ${e.message}</div>`;
+            out.innerHTML = `<div class="empty" style="color:var(--amber)">Demo mode: Backend not running. This feature requires the Python backend server to inject live scenarios.</div>`;
         }
       });
     });
