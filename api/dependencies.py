@@ -110,10 +110,22 @@ global_model = None
 policy_engine = None
 execution_adapter = None
 idempotency_engine = None
+rate_limiter = None
 
 async def init_app_state():
     global redis_client, kafka_producer, global_model, policy_engine, execution_adapter, idempotency_engine
-    
+
+    if settings.ENVIRONMENT == "production":
+        if not settings.API_KEY:
+            raise RuntimeError("API_KEY must be set in production environment.")
+        if len(settings.API_KEY) < 32:
+            raise RuntimeError("API_KEY must be at least 32 characters in production.")
+        if settings.ENABLE_DEMO_ENDPOINTS:
+            raise RuntimeError(
+                "ENABLE_DEMO_ENDPOINTS must be False in production. "
+                "Demo endpoints can inject arbitrary intents into the evaluation pipeline."
+            )
+
     # Init Redis (async)
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     
@@ -163,6 +175,10 @@ async def init_app_state():
         behavioral_window_seconds=BEHAVIORAL_WINDOW
     )
 
+    from security.rate_limiter import RedisRateLimiter
+    global rate_limiter
+    rate_limiter = RedisRateLimiter(redis_client=redis_client, max_requests=100, window_seconds=60)
+
 async def shutdown_app_state():
     global redis_client, kafka_producer, engine
     if kafka_producer:
@@ -187,3 +203,8 @@ def get_idempotency_engine():
     if not idempotency_engine:
         raise SentinelSecurityException("Idempotency engine unavailable. Failing closed.")
     return idempotency_engine
+
+def get_rate_limiter():
+    if not rate_limiter:
+        raise SentinelSecurityException("Rate limiter unavailable. Failing closed.")
+    return rate_limiter

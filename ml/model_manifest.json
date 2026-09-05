@@ -3,19 +3,25 @@
   "generator_seed": 42,
   "feature_version": "1.0",
   "model_version": "v1.0.0-xgb",
-  "created_at": "2026-09-03T15:05:10.295330Z",
+  "created_at": "2026-09-05T13:28:15.793088Z",
   "hyperparameters": {
     "objective": "binary:logistic",
     "eval_metric": "aucpr",
-    "scale_pos_weight": 4.939945404913558,
+    "scale_pos_weight": 1.1212557603686637,
     "tree_method": "hist",
     "seed": 42,
-    "max_depth": 4,
-    "learning_rate": 0.05
+    "min_child_weight": 3,
+    "gamma": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "max_depth": 6,
+    "learning_rate": 0.03
   },
   "thresholds": {
-    "suspicious": 0.2076801359653473,
-    "high_risk": 0.4076801359653473
+    "suspicious": 0.4156230390071869,
+    "high_risk": 0.6156230390071868
   },
   "train_range": {
     "days": [
@@ -62,36 +68,54 @@
     ]
   },
   "metrics": {
-    "aucpr": 0.7531950281526179,
-    "roc_auc": 0.41517206218786085,
-    "brier_score": 0.338234543800354,
-    "precision": 0.7784834737524303,
-    "recall": 1.0,
-    "false_escalation_rate": 1.0,
-    "unsafe_auto_approval_rate": 0.0,
-    "tp": 6006,
-    "fp": 1709,
-    "tn": 0,
-    "fn": 0
+    "aucpr": 0.9999992275355651,
+    "roc_auc": 0.9999975965612087,
+    "brier_score": 0.0016573098255321383,
+    "precision": 1.0,
+    "recall": 0.9981684981684982,
+    "false_escalation_rate": 0.0,
+    "unsafe_auto_approval_rate": 0.0018315018315018315,
+    "tp": 8720,
+    "fp": 0,
+    "tn": 2810,
+    "fn": 16
   },
   "calibration": {
     "prob_true": [
-      0.8521739130434782,
-      0.8460747343160782,
-      0.6479357798165137,
-      0.7558197127290738
+      0.0014265335235378032,
+      0.1,
+      1.0,
+      1.0,
+      0.9090909090909091,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
     ],
     "prob_pred": [
-      0.27999232434420196,
-      0.3106623028580931,
-      0.48382046350508656,
-      0.5302620469018219
+      0.006324753478453754,
+      0.14525605812668801,
+      0.2748752733071645,
+      0.3673039376735687,
+      0.45420763980258594,
+      0.5597423570496696,
+      0.6620150923728942,
+      0.7553327679634094,
+      0.8625590830079971,
+      0.9922720586382995
     ],
     "counts": [
-      1035,
-      2917,
-      1744,
-      2019
+      2804,
+      10,
+      3,
+      8,
+      11,
+      14,
+      5,
+      16,
+      62,
+      8613
     ]
   },
   "environment": {
@@ -99,5 +123,6 @@
     "ram_gb": "15.65",
     "python_version": "3.14.3",
     "os": "Windows"
-  }
+  },
+  "invert_scores": false
 }

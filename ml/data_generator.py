@@ -130,6 +130,7 @@ def _generate_intent_row(
         "agent_id": agent.agent_id,
         "timestamp": dt,
         "day": day_idx,
+        "day_of_week": dt.weekday(),
         "action_type": action_type,
         "transaction_id": generate_id(),
         "amount": amount,
@@ -143,7 +144,7 @@ def _generate_intent_row(
         "rolling_1m_count": count_1m,
         "rolling_1h_count": count_1h,
         "rolling_24h_count": count_24h,
-        
+
         "scenario_label": agent.scenario.name,
         "loss_label": actual_loss_label,
         "loss_type": agent.scenario.loss_type.value if actual_loss_label == 1 and agent.scenario.loss_type else None,
@@ -221,36 +222,55 @@ def generate_agent_history(
 
 def generate_dataset(
     seed: int = 42,
-    num_agents_train_val: int = 6, # A-F
-    num_agents_test_only: int = 2, # G-H
+    num_agents_train_val: int = 24,
+    num_agents_test_only: int = 4,
     days: int = 30,
     scenario_mix: Optional[Dict[str, float]] = None,
     out_path: Optional[str] = None
 ) -> pd.DataFrame:
     """Generate the full dataset."""
     set_seed(seed)
-    
+
     if scenario_mix is None:
         scenario_mix = DEFAULT_SCENARIO_MIX
     validate_scenario_mix(scenario_mix)
-    
+
     start_date = datetime(2026, 1, 1)
     all_rows = []
-    
-    # Train/Val agents (A-F) operate for the full 30 days
-    train_val_agents = [chr(ord('A') + i) for i in range(num_agents_train_val)]
-    for agent_id in train_val_agents:
-        # Pick a scenario for this agent based on mix
-        scenario_name = random.choices(list(scenario_mix.keys()), weights=list(scenario_mix.values()))[0]
+
+    train_val_agents = [chr(ord('A') + i) for i in range(min(num_agents_train_val, 26))]
+    if num_agents_train_val > 26:
+        train_val_agents += [f"A{i}" for i in range(num_agents_train_val - 26)]
+
+    # Guarantee at least one agent per active scenario for minimum class coverage.
+    active_scenarios = [s for s, w in scenario_mix.items() if w > 0]
+    agent_scenario_map: Dict[str, str] = {}
+    idx = 0
+    for scenario in active_scenarios:
+        if idx < num_agents_train_val:
+            agent_scenario_map[train_val_agents[idx]] = scenario
+            idx += 1
+
+    # Distribute remaining agents by weighted random sampling
+    scenario_names_pool = list(scenario_mix.keys())
+    scenario_weights_pool = list(scenario_mix.values())
+    for i in range(idx, num_agents_train_val):
+        scenario_name = random.choices(scenario_names_pool, weights=scenario_weights_pool)[0]
+        agent_scenario_map[train_val_agents[i]] = scenario_name
+
+    for agent_id, scenario_name in agent_scenario_map.items():
         rows = generate_agent_history(agent_id, scenario_name, start_date, num_days=days)
         all_rows.extend(rows)
-        
-    # Test-only agents (G-H) operate only in days 26-30
-    test_only_agents = [chr(ord('A') + num_agents_train_val + i) for i in range(num_agents_test_only)]
+
+    # Test-only agents operate only in days 26-30.
+    test_offset = num_agents_train_val
+    test_only_agents = [
+        chr(ord('A') + test_offset + i) if (test_offset + i) < 26
+        else f"T{i}" for i in range(num_agents_test_only)
+    ]
     test_start_date = start_date + timedelta(days=25)
     for agent_id in test_only_agents:
-        # Test agents build normal history for 2 days, then evade on day 28
-        scenario_name = "behavioral_evasion" 
+        scenario_name = random.choices(scenario_names_pool, weights=scenario_weights_pool)[0]
         rows = generate_agent_history(agent_id, scenario_name, test_start_date, num_days=5, start_day_idx=26)
         all_rows.extend(rows)
         

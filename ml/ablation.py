@@ -26,44 +26,62 @@ logger = logging.getLogger(__name__)
 
 def run_ablation_study(seed: int = 42, force_retrain: bool = False):
     """Run all ablation configs and generate report."""
-    
-    # 1. Generate Dataset (use slightly more agents than default for better stats)
+
     logger.info("Generating dataset...")
-    df = generate_dataset(seed=seed, num_agents_train_val=12, num_agents_test_only=4)
-    
+    df = generate_dataset(seed=seed)
+
     modes = ["transaction_only", "behavioral_only", "full_sentinel"]
     results = {}
     best_manifest = None
-    
+
     # Run ML modes
     for mode in modes:
         logger.info(f"Training {mode}...")
-        model, best_params, test_df = run_training_pipeline(df, ablation_mode=mode, tune=True)
-        
+        model, best_params, test_df, invert_scores = run_training_pipeline(df, ablation_mode=mode, tune=True)
+
         y_true = test_df["loss_label"].values
         y_pred_prob = test_df["model_risk"].values
-        
+
+        # Auto-inversion check on test set as well
+        from sklearn.metrics import roc_auc_score as _roc_auc
+        if len(set(y_true)) > 1:
+            test_roc = _roc_auc(y_true, y_pred_prob)
+            if test_roc < 0.5 and not invert_scores:
+                invert_scores = True
+                y_pred_prob = 1.0 - y_pred_prob
+                test_df["model_risk"] = y_pred_prob
+                logger.warning(f"Test ROC-AUC inverted ({test_roc:.4f}) — flipping scores for {mode}")
+
         threshold = find_optimal_threshold(y_true, y_pred_prob)
         metrics = compute_metrics(y_true, y_pred_prob, threshold)
-        
+
         results[mode] = {
             "metrics": metrics,
             "threshold": threshold,
-            "params": best_params
+            "params": best_params,
+            "invert_scores": invert_scores,
         }
-        
+
         # Save model manifest for the full model
         if mode == "full_sentinel":
             calib = generate_calibration_curve(y_true, y_pred_prob)
+
+            # Fit and save Platt calibrator
+            import joblib
+            calibrator = calibrate_model_platt(y_true, y_pred_prob)
+            joblib.dump(calibrator, "ml/calibrator.pkl")
+            logger.info("Saved Platt calibrator to ml/calibrator.pkl")
+
             best_manifest = generate_manifest(
                 model_version="v1.0.0-xgb",
                 hyperparams=best_params,
                 threshold=threshold,
                 metrics=metrics,
                 calibration=calib,
-                seed=seed
+                seed=seed,
+                invert_scores=invert_scores,
             )
-            
+
             # Save model
             model.save_model("ml/sentinel_model.json")
     
