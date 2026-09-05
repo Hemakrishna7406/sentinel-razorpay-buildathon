@@ -12,14 +12,18 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.temp_venv/
 venv/
 env/
+*.egg-info/
 
 # Node
 node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
+frontend-react/node_modules/
+frontend-react/dist/
 
 # Build / runtime
 dist/
@@ -31,11 +35,18 @@ coverage/
 *.pid
 *.sqlite
 *.db
+mlruns/
+mlflow.db
+sentinel.db
 
 # IDE
 .vscode/
 .idea/
 *.iml
+
+# Claude Code / AI tools
+.claude/
+.agents/
 
 # OS
 .DS_Store
