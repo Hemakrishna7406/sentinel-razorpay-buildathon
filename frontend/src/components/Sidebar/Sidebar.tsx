@@ -12,9 +12,9 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 h-screen bg-panel border-r border-muted/20 flex flex-col">
+    <aside className="w-64 h-screen bg-panel/60 backdrop-blur-xl border-r border-muted/20 flex flex-col">
       <div className="p-6">
-        <Link to="/" className="font-mono text-sm tracking-widest text-text font-bold">
+        <Link to="/" className="font-mono text-sm tracking-widest text-text font-bold hover:text-signal transition-colors">
           SENTINEL
         </Link>
       </div>
