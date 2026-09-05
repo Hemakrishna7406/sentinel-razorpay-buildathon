@@ -1,0 +1,132 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sentinel-db-init
+  namespace: sentinel
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: sentinel-db-init
+    spec:
+      restartPolicy: Never
+      serviceAccountName: sentinel-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: db-init
+          image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/sentinel/sentinel-api:${IMAGE_TAG}
+          command:
+            - python
+            - -c
+            - |
+              import asyncio
+              from sqlalchemy.ext.asyncio import create_async_engine
+              from core.database import Base
+              import os
+
+              async def init_db():
+                  database_url = os.getenv("DATABASE_URL")
+                  engine = create_async_engine(database_url, echo=True)
+
+                  async with engine.begin() as conn:
+                      # Create all tables
+                      await conn.run_sync(Base.metadata.create_all)
+                      print("✅ Database schema initialized successfully")
+
+                  await engine.dispose()
+
+              if __name__ == "__main__":
+                  asyncio.run(init_db())
+
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sentinel-db-secret
+                  key: database-url
+
+            - name: PYTHONUNBUFFERED
+              value: "1"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sentinel-kafka-topics-init
+  namespace: sentinel
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-4"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: sentinel-kafka-init
+    spec:
+      restartPolicy: Never
+      serviceAccountName: sentinel-api
+      containers:
+        - name: kafka-topics-init
+          image: confluentinc/cp-kafka:7.5.0
+          command:
+            - bash
+            - -c
+            - |
+              # Wait for Kafka to be ready
+              echo "Waiting for Kafka brokers..."
+              kafka-broker-api-versions --bootstrap-server ${KAFKA_BOOTSTRAP_SERVERS} || exit 1
+
+              # Create topics if they don't exist
+              for topic in intents.inbound intents.evaluated audit.trail; do
+                kafka-topics --bootstrap-server ${KAFKA_BOOTSTRAP_SERVERS} \
+                  --create --if-not-exists \
+                  --topic $topic \
+                  --partitions 4 \
+                  --replication-factor 3 \
+                  --config retention.ms=604800000 \
+                  --command-config /etc/kafka/client.properties || true
+              done
+
+              echo "✅ Kafka topics initialized"
+              kafka-topics --bootstrap-server ${KAFKA_BOOTSTRAP_SERVERS} --list
+
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

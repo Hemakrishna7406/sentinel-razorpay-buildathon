@@ -1,0 +1,77 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist/
+build/
+*.egg
+.pytest_cache
+.coverage
+htmlcov/
+.mypy_cache
+.ruff_cache
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+docs/
+experiments/
+
+# Infrastructure
+terraform/
+.github/
+k8s/
+helm/
+monitoring/
+scripts/
+
+# Test files
+tests/
+*.test.py
+test_*.py
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Data
+data/
+*.csv
+*.json
+*.parquet
+ml/models/*.pkl
+!ml/model_manifest.json
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

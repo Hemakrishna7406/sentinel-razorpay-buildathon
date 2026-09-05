@@ -1,0 +1,67 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: sentinel-production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Deploy to EKS
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          helm upgrade --install sentinel ./helm/sentinel \
+            --namespace sentinel \
+            --create-namespace \
+            --set image.tag=$IMAGE_TAG \
+            --set api.replicas=3 \
+            --set worker.replicas=5 \
+            --wait --timeout 10m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/sentinel-api -n sentinel
+          kubectl rollout status deployment/sentinel-worker -n sentinel
+          kubectl rollout status deployment/sentinel-audit -n sentinel
+
+      - name: Run smoke tests
+        run: |
+          API_URL=$(kubectl get svc sentinel-api -n sentinel -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          curl -f http://$API_URL/health || exit 1
+
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment to production: ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

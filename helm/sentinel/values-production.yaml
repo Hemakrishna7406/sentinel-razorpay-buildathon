@@ -1,0 +1,165 @@
+# Production values for Sentinel - integrates with Terraform-managed AWS infrastructure
+# Override default values.yaml for production deployment
+# Usage: helm upgrade --install sentinel ./helm/sentinel -f helm/sentinel/values-production.yaml
+
+global:
+  environment: production
+  imageRegistry: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+  imagePullSecrets: []
+
+api:
+  name: sentinel-api
+  replicaCount: 3
+  image:
+    repository: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/sentinel/sentinel-api
+    tag: ${IMAGE_TAG}  # Injected by CI/CD
+    pullPolicy: IfNotPresent
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8000
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    OTEL_SERVICE_NAME: "sentinel-api"
+    # Database - from Terraform output
+    DATABASE_URL: "postgresql://sentinel_admin:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/sentinel"
+    DATABASE_POOL_SIZE: "100"
+    DATABASE_MAX_OVERFLOW: "50"
+    # Redis - from Terraform output
+    REDIS_URL: "redis://:${REDIS_PASSWORD}@${REDIS_ENDPOINT}:6379"
+    REDIS_MAX_CONNECTIONS: "50"
+    # Kafka - from Terraform output
+    KAFKA_BOOTSTRAP_SERVERS: "${MSK_BOOTSTRAP_BROKERS}"
+    KAFKA_SECURITY_PROTOCOL: "SSL"
+    KAFKA_INBOUND_TOPIC: "intents.inbound"
+    KAFKA_EVALUATED_TOPIC: "intents.evaluated"
+    # Security - from AWS Secrets Manager
+    API_KEY: "${API_KEY}"
+    ADMIN_API_KEY: "${ADMIN_API_KEY}"
+    CAPABILITY_SIGNING_KEY: "${CAPABILITY_SIGNING_KEY}"
+    ENABLE_DEMO_ENDPOINTS: "false"
+    # Rate limiting
+    RATE_LIMIT_REQUESTS: "100"
+    RATE_LIMIT_WINDOW_SECONDS: "60"
+
+worker:
+  name: sentinel-worker
+  replicaCount: 5
+  image:
+    repository: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/sentinel/sentinel-worker
+    tag: ${IMAGE_TAG}
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 75
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    INFERENCE_BACKEND: "cpu"
+    XGB_NTHREAD: "4"
+    MAX_CONCURRENT_TASKS: "32"
+    WORKER_CONCURRENCY: "10"
+    # Database
+    DATABASE_URL: "postgresql://sentinel_admin:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/sentinel"
+    # Redis
+    REDIS_URL: "redis://:${REDIS_PASSWORD}@${REDIS_ENDPOINT}:6379"
+    # Kafka
+    KAFKA_BOOTSTRAP_SERVERS: "${MSK_BOOTSTRAP_BROKERS}"
+    KAFKA_SECURITY_PROTOCOL: "SSL"
+    KAFKA_GROUP_ID: "sentinel-workers"
+
+audit:
+  name: sentinel-audit
+  replicaCount: 2
+  image:
+    repository: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/sentinel/sentinel-audit
+    tag: ${IMAGE_TAG}
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  env:
+    LOG_LEVEL: "INFO"
+    JSON_LOGS: "true"
+    ENVIRONMENT: "production"
+    # Database
+    DATABASE_URL: "postgresql://sentinel_admin:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/sentinel"
+    # Kafka
+    KAFKA_BOOTSTRAP_SERVERS: "${MSK_BOOTSTRAP_BROKERS}"
+    KAFKA_SECURITY_PROTOCOL: "SSL"
+    AUDIT_TOPIC: "audit.trail"
+
+# DISABLE embedded services - use Terraform-managed AWS services instead
+redis:
+  enabled: false
+
+kafka:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+# MLflow - can be deployed separately or use managed service
+mlflow:
+  enabled: false
+  trackingUri: "http://mlflow.sentinel.svc.cluster.local:5000"
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ${IRSA_ROLE_ARN}
+  name: sentinel-api
+
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+
+observability:
+  prometheus:
+    enabled: true
+    scrapeInterval: 30s
+  jaeger:
+    enabled: false

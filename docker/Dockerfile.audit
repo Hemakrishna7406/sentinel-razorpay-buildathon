@@ -1,0 +1,33 @@
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 sentinel
+
+COPY --from=builder /build/wheels /wheels
+RUN pip install --no-cache /wheels/*
+
+COPY core/ ./core/
+COPY security/ ./security/
+COPY audit/ ./audit/
+
+RUN chown -R sentinel:sentinel /app
+
+USER sentinel
+
+CMD ["python", "-m", "audit.verifier"]

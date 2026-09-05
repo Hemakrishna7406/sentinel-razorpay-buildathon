@@ -29,13 +29,16 @@ const DemoScenariosPage={
         out.innerHTML = `<div class="empty" style="animation: pulse 2s infinite;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;margin-bottom:12px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="font-size:.75rem;color:var(--text-tertiary)">Injecting ${name} into Kafka... Please wait</div></div>`;
         
         try {
-            await ApiClient.post(`/demo/scenarios/${name}?count=50`);
-            
+            const res = await fetch(`/demo/scenarios/${name}?count=50`, { method: 'POST' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
             // Wait a few seconds for the worker and audit consumer to process
             setTimeout(async () => {
                 try {
-                    const stats = await ApiClient.get('/api/analytics/stats');
-                    
+                    const statsRes = await fetch('/api/analytics/stats');
+                    if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
+                    const stats = await statsRes.json();
+
                     const total = stats.total_intents || 0;
                     const allowed = stats.decisions.ALLOW || 0;
                     const escalated = stats.decisions.ESCALATE || 0;
