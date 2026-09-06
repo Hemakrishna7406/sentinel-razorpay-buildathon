@@ -18,6 +18,7 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+
 def run_migrations_offline() -> None:
     url = os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
     context.configure(
@@ -29,23 +30,23 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online() -> None:
     alembic_config = config.get_section(config.config_ini_section)
     url = os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
     if url:
         alembic_config["sqlalchemy.url"] = url
-    
+
     connectable = engine_from_config(
         alembic_config,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()

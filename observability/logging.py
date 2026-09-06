@@ -22,6 +22,7 @@ from typing import Any
 
 
 from core.config import settings
+
 ENVIRONMENT = settings.ENVIRONMENT
 LOG_LEVEL = settings.LOG_LEVEL.upper()
 JSON_LOGS = settings.JSON_LOGS
@@ -42,10 +43,27 @@ class _JsonFormatter(logging.Formatter):
         # Merge any extra kwargs passed to logger.info(..., key=value)
         for key, value in record.__dict__.items():
             if key not in {
-                "name", "msg", "args", "levelname", "levelno", "pathname",
-                "filename", "module", "exc_info", "exc_text", "stack_info",
-                "lineno", "funcName", "created", "msecs", "relativeCreated",
-                "thread", "threadName", "processName", "process", "message",
+                "name",
+                "msg",
+                "args",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "message",
                 "taskName",
             } and not key.startswith("_"):
                 base[key] = value
@@ -66,10 +84,7 @@ class _JsonFormatter(logging.Formatter):
 class _PlainFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         base = f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(record.created))} {record.levelname:<8} [{record.name}] {record.getMessage()}"
-        extras = {
-            k: v for k, v in record.__dict__.items()
-            if k in {"intent_id", "agent_id", "decision", "latency_ms"}
-        }
+        extras = {k: v for k, v in record.__dict__.items() if k in {"intent_id", "agent_id", "decision", "latency_ms"}}
         if extras:
             base += " " + " ".join(f"{k}={v}" for k, v in extras.items())
         return base

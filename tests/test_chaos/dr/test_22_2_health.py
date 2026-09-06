@@ -15,10 +15,10 @@ so all tests here are plain synchronous functions.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
+
 
 def _make_live_redis():
     """Mock a healthy async Redis client."""
@@ -67,6 +67,7 @@ def _make_dead_engine():
 # 22.2.1 — Liveness
 # ─────────────────────────────────────────────────────────────
 
+
 class TestLiveness:
     def test_liveness_always_200(self, test_client):
         response = test_client.get("/health/live")
@@ -86,6 +87,7 @@ class TestLiveness:
 # ─────────────────────────────────────────────────────────────
 # 22.2.2 — Readiness: all dependencies healthy
 # ─────────────────────────────────────────────────────────────
+
 
 class TestReadinessAllHealthy:
     def test_ready_200_when_redis_kafka_up(self, test_client):
@@ -123,6 +125,7 @@ class TestReadinessAllHealthy:
 # ─────────────────────────────────────────────────────────────
 # 22.2.3 — Readiness: required dependency failures → 503
 # ─────────────────────────────────────────────────────────────
+
 
 class TestReadinessRequiredFailures:
     def test_503_when_redis_down(self, test_client):
@@ -188,6 +191,7 @@ class TestReadinessRequiredFailures:
 # 22.2.4 — Dependencies diagnostic panel
 # ─────────────────────────────────────────────────────────────
 
+
 class TestDependenciesPanel:
     def test_dependencies_always_200(self, test_client):
         """Diagnostic panel must always return 200, even with dead dependencies."""
@@ -248,6 +252,7 @@ class TestDependenciesPanel:
 # 22.2.5 — Authorization safety invariant
 # ─────────────────────────────────────────────────────────────
 
+
 class TestHealthAuthorizationInvariant:
     def test_health_endpoints_never_produce_allow_or_escalate(self, test_client):
         """
@@ -261,6 +266,6 @@ class TestHealthAuthorizationInvariant:
                 continue
             body = resp.json() if resp.status_code == 200 else {}
             for forbidden_field in ["decision", "capability_token", "allow", "escalate", "contain"]:
-                assert forbidden_field not in body, (
-                    f"Health endpoint {path} leaked authorization field: {forbidden_field}"
-                )
+                assert (
+                    forbidden_field not in body
+                ), f"Health endpoint {path} leaked authorization field: {forbidden_field}"

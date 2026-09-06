@@ -26,9 +26,9 @@ def test_transaction_features_extracted_correctly():
         "historical_avg_amount": 500,
         "historical_std_amount": 250,
     }
-    
+
     features = extract_features(row)
-    
+
     assert features["amount"] == 1000
     assert features["amount_log"] > 0
     assert features["recipient_novelty"] == 1
@@ -50,13 +50,13 @@ def test_behavioral_z_scores():
         "historical_avg_amount": 500,
         "historical_std_amount": 250,
     }
-    
+
     features = extract_features(row)
-    
+
     # amount_z = (1000 - 500) / 250 = 2.0
     assert features["amount_z"] == 2.0
     assert features["amount_z_missing"] == 0
-    
+
     # velocity_z = (5 - 2.0) / 2.0 = 1.5
     assert features["velocity_z"] == 1.5
     assert features["velocity_z_missing"] == 0
@@ -68,19 +68,19 @@ def test_insufficient_history():
         "amount": 1000,
         "historical_tx_count": 3,  # < 5, so insufficient history
         # These should be ignored because history is insufficient
-        "historical_avg_1h_count": 2.0, 
+        "historical_avg_1h_count": 2.0,
         "historical_avg_amount": 500,
         "historical_std_amount": 250,
     }
-    
+
     features = extract_features(row)
-    
+
     # Transaction features still present
     assert features["amount"] == 1000
-    
+
     # Behavioral features must be missing
     assert features["amount_z"] == 0.0
     assert features["amount_z_missing"] == 1
-    
+
     assert features["velocity_z"] == 0.0
     assert features["velocity_z_missing"] == 1

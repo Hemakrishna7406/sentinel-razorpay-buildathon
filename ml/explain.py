@@ -33,6 +33,7 @@ def _get_explainer(model: xgb.Booster):
     if _explainer is None or _model_ref is not model:
         try:
             import shap
+
             _explainer = shap.TreeExplainer(model)
             _model_ref = model
             logger.info("SHAP TreeExplainer initialized.")
@@ -53,13 +54,13 @@ def explain_prediction(
 ) -> List[Dict[str, Any]]:
     """
     Explain a single prediction using SHAP values.
-    
+
     Args:
         model: Trained XGBoost Booster.
         feature_names: Ordered list of feature names the model expects.
         feature_values: Dict of feature_name → value for this sample.
         top_k: Number of top contributing features to return.
-        
+
     Returns:
         List of dicts with keys: feature, value, shap_value, direction.
         Sorted by absolute SHAP contribution (descending).
@@ -67,35 +68,37 @@ def explain_prediction(
     # Build the input DataFrame
     row = {f: feature_values.get(f, 0) for f in feature_names}
     df = pd.DataFrame([row])[feature_names]
-    
+
     explainer = _get_explainer(model)
-    
+
     if explainer is not None:
         try:
             shap_values = explainer.shap_values(df)
             # shap_values is an array of shape (1, n_features)
             sv = shap_values[0] if isinstance(shap_values, np.ndarray) else shap_values
-            if hasattr(sv, 'values'):
+            if hasattr(sv, "values"):
                 sv = sv.values[0]
             elif len(sv.shape) > 1:
                 sv = sv[0]
-                
+
             contributions = []
             for i, fname in enumerate(feature_names):
-                contributions.append({
-                    "feature": fname,
-                    "value": float(row[fname]) if not pd.isna(row[fname]) else None,
-                    "shap_value": float(sv[i]),
-                    "direction": "increases_risk" if sv[i] > 0 else "decreases_risk",
-                })
-            
+                contributions.append(
+                    {
+                        "feature": fname,
+                        "value": float(row[fname]) if not pd.isna(row[fname]) else None,
+                        "shap_value": float(sv[i]),
+                        "direction": "increases_risk" if sv[i] > 0 else "decreases_risk",
+                    }
+                )
+
             # Sort by absolute SHAP value
             contributions.sort(key=lambda x: abs(x["shap_value"]), reverse=True)
             return contributions[:top_k]
-            
+
         except Exception as e:
             logger.warning(f"SHAP explanation failed: {e}. Falling back to gain-based.")
-    
+
     # Fallback: gain-based feature importance
     return _gain_fallback(model, feature_names, feature_values, top_k)
 
@@ -117,22 +120,21 @@ def _gain_fallback(
         xgb_key = fname
         gain = importance.get(xgb_key, 0.0)
         val = feature_values.get(fname, 0)
-        contributions.append({
-            "feature": fname,
-            "value": float(val) if not pd.isna(val) else None,
-            "shap_value": float(gain),
-            "direction": "model_uses_feature" if gain > 0 else "unused",
-        })
+        contributions.append(
+            {
+                "feature": fname,
+                "value": float(val) if not pd.isna(val) else None,
+                "shap_value": float(gain),
+                "direction": "model_uses_feature" if gain > 0 else "unused",
+            }
+        )
 
     contributions.sort(key=lambda x: abs(x["shap_value"]), reverse=True)
     return contributions[:top_k]
 
 
 def generate_waterfall_plot(
-    model: xgb.Booster,
-    feature_names: List[str],
-    feature_values: Dict[str, Any],
-    output_path: Optional[Path] = None
+    model: xgb.Booster, feature_names: List[str], feature_values: Dict[str, Any], output_path: Optional[Path] = None
 ) -> Optional[str]:
     """
     Generate SHAP waterfall plot for a single prediction.
@@ -167,7 +169,7 @@ def generate_waterfall_plot(
         # Handle different SHAP value formats
         if isinstance(shap_values, list):
             shap_values = shap_values[0]
-        if hasattr(shap_values, 'values'):
+        if hasattr(shap_values, "values"):
             shap_values = shap_values.values[0]
         elif len(shap_values.shape) > 1:
             shap_values = shap_values[0]
@@ -182,16 +184,13 @@ def generate_waterfall_plot(
 
         # Create SHAP Explanation object
         explanation = shap.Explanation(
-            values=shap_values,
-            base_values=base_value,
-            data=df.values[0],
-            feature_names=feature_names
+            values=shap_values, base_values=base_value, data=df.values[0], feature_names=feature_names
         )
 
         shap.plots.waterfall(explanation, show=False)
 
         if output_path:
-            plt.savefig(output_path, bbox_inches='tight', dpi=150)
+            plt.savefig(output_path, bbox_inches="tight", dpi=150)
             plt.close()
             logger.info(f"Waterfall plot saved to {output_path}")
             return str(output_path)
@@ -204,10 +203,7 @@ def generate_waterfall_plot(
 
 
 def explain_batch(
-    model: xgb.Booster,
-    feature_names: List[str],
-    feature_df: pd.DataFrame,
-    top_k: int = 5
+    model: xgb.Booster, feature_names: List[str], feature_df: pd.DataFrame, top_k: int = 5
 ) -> List[List[Dict[str, Any]]]:
     """
     Explain multiple predictions in batch.
@@ -225,10 +221,7 @@ def explain_batch(
 
     if explainer is None:
         logger.warning("SHAP not available. Using gain fallback for batch.")
-        return [
-            _gain_fallback(model, feature_names, row.to_dict(), top_k)
-            for _, row in feature_df.iterrows()
-        ]
+        return [_gain_fallback(model, feature_names, row.to_dict(), top_k) for _, row in feature_df.iterrows()]
 
     try:
         shap_values = explainer.shap_values(feature_df[feature_names])
@@ -236,19 +229,21 @@ def explain_batch(
         # Handle different formats
         if isinstance(shap_values, list):
             shap_values = shap_values[0]
-        if hasattr(shap_values, 'values'):
+        if hasattr(shap_values, "values"):
             shap_values = shap_values.values
 
         explanations = []
         for i in range(len(feature_df)):
             contributions = []
             for j, fname in enumerate(feature_names):
-                contributions.append({
-                    "feature": fname,
-                    "value": float(feature_df.iloc[i][fname]) if not pd.isna(feature_df.iloc[i][fname]) else None,
-                    "shap_value": float(shap_values[i, j]),
-                    "direction": "increases_risk" if shap_values[i, j] > 0 else "decreases_risk",
-                })
+                contributions.append(
+                    {
+                        "feature": fname,
+                        "value": float(feature_df.iloc[i][fname]) if not pd.isna(feature_df.iloc[i][fname]) else None,
+                        "shap_value": float(shap_values[i, j]),
+                        "direction": "increases_risk" if shap_values[i, j] > 0 else "decreases_risk",
+                    }
+                )
 
             contributions.sort(key=lambda x: abs(x["shap_value"]), reverse=True)
             explanations.append(contributions[:top_k])
@@ -257,17 +252,11 @@ def explain_batch(
 
     except Exception as e:
         logger.warning(f"Batch SHAP explanation failed: {e}")
-        return [
-            _gain_fallback(model, feature_names, row.to_dict(), top_k)
-            for _, row in feature_df.iterrows()
-        ]
+        return [_gain_fallback(model, feature_names, row.to_dict(), top_k) for _, row in feature_df.iterrows()]
 
 
 def get_global_feature_importance(
-    model: xgb.Booster,
-    feature_names: List[str],
-    sample_data: pd.DataFrame,
-    importance_type: str = "shap"
+    model: xgb.Booster, feature_names: List[str], sample_data: pd.DataFrame, importance_type: str = "shap"
 ) -> List[Dict[str, float]]:
     """
     Calculate global feature importance across entire dataset.
@@ -291,15 +280,14 @@ def get_global_feature_importance(
                 # Handle formats
                 if isinstance(shap_values, list):
                     shap_values = shap_values[0]
-                if hasattr(shap_values, 'values'):
+                if hasattr(shap_values, "values"):
                     shap_values = shap_values.values
 
                 # Calculate mean absolute SHAP value for each feature
                 mean_abs_shap = np.abs(shap_values).mean(axis=0)
 
                 importance_list = [
-                    {"feature": fname, "importance": float(mean_abs_shap[i])}
-                    for i, fname in enumerate(feature_names)
+                    {"feature": fname, "importance": float(mean_abs_shap[i])} for i, fname in enumerate(feature_names)
                 ]
 
                 importance_list.sort(key=lambda x: x["importance"], reverse=True)
@@ -312,8 +300,7 @@ def get_global_feature_importance(
     try:
         importance = model.get_score(importance_type="gain")
         importance_list = [
-            {"feature": fname, "importance": float(importance.get(fname, 0.0))}
-            for fname in feature_names
+            {"feature": fname, "importance": float(importance.get(fname, 0.0))} for fname in feature_names
         ]
         importance_list.sort(key=lambda x: x["importance"], reverse=True)
         return importance_list
@@ -323,11 +310,7 @@ def get_global_feature_importance(
         return []
 
 
-def generate_human_readable_explanation(
-    contributions: List[Dict[str, Any]],
-    risk_score: float,
-    decision: str
-) -> str:
+def generate_human_readable_explanation(contributions: List[Dict[str, Any]], risk_score: float, decision: str) -> str:
     """
     Generate human-readable explanation text.
 
@@ -339,11 +322,7 @@ def generate_human_readable_explanation(
     Returns:
         Human-readable explanation string
     """
-    explanation_parts = [
-        f"Decision: {decision} (Risk Score: {risk_score:.2%})",
-        "",
-        "Top Contributing Factors:"
-    ]
+    explanation_parts = [f"Decision: {decision} (Risk Score: {risk_score:.2%})", "", "Top Contributing Factors:"]
 
     for i, contrib in enumerate(contributions[:5], 1):
         feature = contrib["feature"]
@@ -361,8 +340,6 @@ def generate_human_readable_explanation(
         else:
             value_str = str(value)
 
-        explanation_parts.append(
-            f"{i}. {feature} = {value_str} ({direction} risk by {abs(shap_val):.4f})"
-        )
+        explanation_parts.append(f"{i}. {feature} = {value_str} ({direction} risk by {abs(shap_val):.4f})")
 
     return "\n".join(explanation_parts)

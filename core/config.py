@@ -3,8 +3,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Optional
 
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Environment
     ENVIRONMENT: str = Field("development", description="Current environment (development, production)")
@@ -19,7 +20,9 @@ class Settings(BaseSettings):
     # Security & Authentication
     API_KEY: str = Field("", description="API key for agent endpoints. Required in production.")
     ADMIN_API_KEY: str = Field("", description="Admin API key for policy management. Required in production.")
-    ENABLE_DEMO_ENDPOINTS: bool = Field(False, description="Enable demo scenario injection. MUST be False in production.")
+    ENABLE_DEMO_ENDPOINTS: bool = Field(
+        False, description="Enable demo scenario injection. MUST be False in production."
+    )
 
     # Database
     DATABASE_URL: str = Field("sqlite:///./sentinel.db", description="SQLAlchemy DB URL")
@@ -30,7 +33,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field("redis://localhost:6379/0", description="Redis connection URL")
 
     # Auth & Execution
-    CAPABILITY_SIGNING_KEY: str = Field("sentinel-local-dev-secret-do-not-use-in-prod", description="Key for signing capability tokens")
+    CAPABILITY_SIGNING_KEY: str = Field(
+        "sentinel-local-dev-secret-do-not-use-in-prod", description="Key for signing capability tokens"
+    )
     EXECUTION_MODE: str = Field("mock", description="Execution adapter mode (mock, razorpay)")
     RAZORPAY_PROVIDER: str = Field("mcp", description="Razorpay provider type (mcp, direct)")
     RAZORPAY_KEY_ID: Optional[str] = Field(None, description="Razorpay Key ID")
@@ -63,5 +68,6 @@ class Settings(BaseSettings):
     # Security Tuning
     IDEMPOTENCY_TTL_SECONDS: int = Field(86400, description="Idempotency TTL")
     BEHAVIORAL_WINDOW_SECONDS: int = Field(5, description="Behavioral tracking window")
+
 
 settings = Settings()

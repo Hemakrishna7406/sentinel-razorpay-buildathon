@@ -15,19 +15,19 @@ from security.audit_chain import audit_record_hash
 class AuditWriter:
     def __init__(self, session: Session):
         self.session = session
-        
+
     def log_evaluation(
-        self, 
+        self,
         agent_id: str,
-        intent: IntentContext, 
+        intent: IntentContext,
         model_risk: Optional[float],
-        decision: str, 
+        decision: str,
         reason: str,
-        token_payload: Optional[CapabilityPayload] = None
+        token_payload: Optional[CapabilityPayload] = None,
     ) -> AuditRecord:
         """Log the policy engine's decision before execution."""
         import datetime
-        
+
         last_record = self.session.query(AuditRecord).order_by(AuditRecord.id.desc()).first()
         prev_hash = last_record.record_hash if last_record else None
         values = dict(
@@ -42,7 +42,7 @@ class AuditWriter:
             model_risk_score=model_risk,
             decision=decision,
             decision_reason=reason,
-            capability_jti=token_payload.jti if token_payload else None
+            capability_jti=token_payload.jti if token_payload else None,
         )
         # 'timestamp' is a DB-generated column and must NOT be part of the hash.
         # audit_consumer.py never includes it in record_dict, so hash(timestamp)=None.
@@ -51,12 +51,12 @@ class AuditWriter:
         values["record_hash"] = audit_record_hash(values)
         values["timestamp"] = ts
         record = AuditRecord(**values)
-        
+
         self.session.add(record)
         self.session.commit()
         self.session.refresh(record)
         return record
-        
+
     def log_execution(self, intent_id: str, tx_id: str):
         """Update the ledger with the downstream transaction ID."""
         record = self.session.query(AuditRecord).filter_by(intent_id=intent_id).first()

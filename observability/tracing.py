@@ -32,6 +32,7 @@ def _init_tracing() -> None:
     _tracer_initialized = True
 
     from core.config import settings
+
     endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
     service_name = settings.OTEL_SERVICE_NAME
 
@@ -47,6 +48,7 @@ def _init_tracing() -> None:
         if endpoint:
             try:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
                 exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
                 provider.add_span_processor(BatchSpanProcessor(exporter))
                 logger.info(f"OpenTelemetry OTLP exporter configured: {endpoint}")
@@ -74,6 +76,7 @@ def get_tracer(name: str):
     try:
         _init_tracing()
         from opentelemetry import trace
+
         return trace.get_tracer(name)
     except Exception:
         return _NoOpTracer()
@@ -87,6 +90,7 @@ def inject_trace_context(payload: dict) -> dict:
     try:
         from opentelemetry import trace
         from opentelemetry.propagate import inject
+
         carrier: dict = {}
         inject(carrier)
         if carrier:
@@ -103,6 +107,7 @@ def extract_trace_context(payload: dict):
     """
     try:
         from opentelemetry.propagate import extract
+
         return extract(payload)
     except Exception:
         return None
@@ -110,16 +115,28 @@ def extract_trace_context(payload: dict):
 
 class _NoOpSpan:
     """Minimal no-op span for when OTel is unavailable."""
-    def __enter__(self): return self
-    def __exit__(self, *args): pass
-    def set_attribute(self, *args): pass
-    def set_status(self, *args): pass
-    def record_exception(self, *args): pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def set_attribute(self, *args):
+        pass
+
+    def set_status(self, *args):
+        pass
+
+    def record_exception(self, *args):
+        pass
 
 
 class _NoOpTracer:
     """Minimal no-op tracer for when OTel is unavailable."""
+
     def start_as_current_span(self, name: str, **kwargs):
         return _NoOpSpan()
+
     def start_span(self, name: str, **kwargs):
         return _NoOpSpan()

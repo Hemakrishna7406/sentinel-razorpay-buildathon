@@ -29,7 +29,7 @@ def split_data(
     df: pd.DataFrame,
     train_days: Tuple[int, int] = (1, 20),
     val_days: Tuple[int, int] = (21, 25),
-    test_days: Tuple[int, int] = (26, 30)
+    test_days: Tuple[int, int] = (26, 30),
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Split data temporally as per dataset.md §5."""
     train_df = df[(df["day"] >= train_days[0]) & (df["day"] <= train_days[1])].copy()
@@ -40,10 +40,7 @@ def split_data(
 
 
 def prepare_matrices(
-    train_df: pd.DataFrame,
-    val_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    ablation_mode: str = "full_sentinel"
+    train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame, ablation_mode: str = "full_sentinel"
 ) -> Tuple[xgb.DMatrix, xgb.DMatrix, xgb.DMatrix, List[str]]:
     """Convert pandas DataFrames to XGBoost DMatrices.
 
@@ -108,17 +105,13 @@ def train_model(
         num_boost_round=300,
         evals=evals,
         early_stopping_rounds=30,
-        verbose_eval=False
+        verbose_eval=False,
     )
 
     return model, hyperparameters
 
 
-def tune_and_train(
-    dtrain: xgb.DMatrix,
-    dval: xgb.DMatrix,
-    scale_pos_weight: float
-) -> Tuple[xgb.Booster, dict]:
+def tune_and_train(dtrain: xgb.DMatrix, dval: xgb.DMatrix, scale_pos_weight: float) -> Tuple[xgb.Booster, dict]:
     """Validation-based hyperparameter tuning."""
     param_grid = [
         {"max_depth": 4, "learning_rate": 0.05},
@@ -145,7 +138,7 @@ def tune_and_train(
             "colsample_bytree": 0.8,
             "reg_alpha": 0.1,
             "reg_lambda": 1.0,
-            **params
+            **params,
         }
 
         evals = [(dval, "val")]
@@ -155,7 +148,7 @@ def tune_and_train(
             num_boost_round=300,
             evals=evals,
             early_stopping_rounds=30,
-            verbose_eval=False
+            verbose_eval=False,
         )
 
         val_preds = model.predict(dval)
@@ -166,13 +159,16 @@ def tune_and_train(
             best_model = model
             best_params = full_params
 
-    logger.info(f"Selected hyperparams based on val PR-AUC ({best_score:.4f}): max_depth={best_params['max_depth']}, lr={best_params['learning_rate']}")
+    logger.info(
+        f"Selected hyperparams based on val PR-AUC ({best_score:.4f}): max_depth={best_params['max_depth']}, lr={best_params['learning_rate']}"
+    )
     return best_model, best_params
 
 
 def _init_mlflow():
     """Initialize MLflow with local file-based tracking as fallback."""
     from core.config import settings
+
     uri = settings.MLFLOW_TRACKING_URI
     try:
         mlflow.set_tracking_uri(uri)
@@ -186,9 +182,7 @@ def _init_mlflow():
 
 
 def run_training_pipeline(
-    df: pd.DataFrame,
-    ablation_mode: str = "full_sentinel",
-    tune: bool = True
+    df: pd.DataFrame, ablation_mode: str = "full_sentinel", tune: bool = True
 ) -> Tuple[xgb.Booster, dict, pd.DataFrame, bool]:
     """End-to-end training pipeline for a given ablation mode."""
 
@@ -221,12 +215,19 @@ def run_training_pipeline(
             model, best_params = tune_and_train(dtrain, dval, spw)
         else:
             best_params = {
-                "max_depth": 4, "learning_rate": 0.05,
-                "objective": "binary:logistic", "eval_metric": "aucpr",
-                "scale_pos_weight": spw, "tree_method": "hist", "seed": 42,
-                "min_child_weight": 3, "gamma": 0.1,
-                "subsample": 0.8, "colsample_bytree": 0.8,
-                "reg_alpha": 0.1, "reg_lambda": 1.0,
+                "max_depth": 4,
+                "learning_rate": 0.05,
+                "objective": "binary:logistic",
+                "eval_metric": "aucpr",
+                "scale_pos_weight": spw,
+                "tree_method": "hist",
+                "seed": 42,
+                "min_child_weight": 3,
+                "gamma": 0.1,
+                "subsample": 0.8,
+                "colsample_bytree": 0.8,
+                "reg_alpha": 0.1,
+                "reg_lambda": 1.0,
             }
             model, best_params = train_model(dtrain, dval, spw, best_params)
 
@@ -248,11 +249,7 @@ def run_training_pipeline(
         # Register the production model if full_sentinel
         if ablation_mode == "full_sentinel":
             try:
-                mlflow.xgboost.log_model(
-                    model,
-                    artifact_path="model",
-                    registered_model_name="sentinel_xgboost"
-                )
+                mlflow.xgboost.log_model(model, artifact_path="model", registered_model_name="sentinel_xgboost")
                 logger.info("Registered full_sentinel model to MLflow Model Registry as 'sentinel_xgboost'")
             except Exception as e:
                 logger.warning(f"MLflow model registration failed (non-blocking): {e}")

@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 
 # Colors for terminal output
-GREEN = '\033[0;32m'
-YELLOW = '\033[1;33m'
-RED = '\033[0;31m'
-NC = '\033[0m'  # No Color
+GREEN = "\033[0;32m"
+YELLOW = "\033[1;33m"
+RED = "\033[0;31m"
+NC = "\033[0m"  # No Color
 
 
 def print_header(text):
@@ -114,6 +114,7 @@ def main():
 
     try:
         import locust
+
         print(f"{GREEN}✓{NC} Locust installed (version {locust.__version__})")
     except ImportError:
         print(f"{RED}✗{NC} Locust not installed (run: pip install locust)")
@@ -121,25 +122,23 @@ def main():
 
     try:
         import redis
+
         print(f"{GREEN}✓{NC} Redis client installed")
     except ImportError:
         print(f"{YELLOW}⚠{NC} Redis client not installed (optional for benchmarks)")
 
     try:
         import xgboost
+
         print(f"{GREEN}✓{NC} XGBoost installed (version {xgboost.__version__})")
     except ImportError:
         print(f"{YELLOW}⚠{NC} XGBoost not installed (required for benchmarks)")
 
     # Docker check
     import subprocess
+
     try:
-        result = subprocess.run(
-            ["docker", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             version = result.stdout.strip()
             print(f"{GREEN}✓{NC} Docker available ({version})")
@@ -158,7 +157,9 @@ def main():
         print("\nAll optimization files are in place and prerequisites are met.")
         print("\nNext steps:")
         print("  1. Start Docker services: docker-compose up -d postgres redis redpanda")
-        print("  2. Apply database indexes: docker exec -i sentinel-postgres psql -U sentinel -d sentinel < alembic/versions/performance_indexes.sql")
+        print(
+            "  2. Apply database indexes: docker exec -i sentinel-postgres psql -U sentinel -d sentinel < alembic/versions/performance_indexes.sql"
+        )
         print("  3. Run performance tests: scripts/run-performance-tests.sh (or .bat on Windows)")
         print("\nOr use the automated script:")
         print("  chmod +x scripts/run-performance-tests.sh && ./scripts/run-performance-tests.sh")

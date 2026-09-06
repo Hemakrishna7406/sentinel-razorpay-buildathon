@@ -1,6 +1,7 @@
 import asyncio
 from execution.adapters.mcp_adapter import RazorpayMCPAdapter
 
+
 async def run():
     a = RazorpayMCPAdapter(environment="test")
     await a._initialize_tools()
@@ -12,6 +13,7 @@ async def run():
             print("update_refund schema:", t.input_schema)
     if a._exit_stack:
         await a._exit_stack.aclose()
+
 
 if __name__ == "__main__":
     asyncio.run(run())

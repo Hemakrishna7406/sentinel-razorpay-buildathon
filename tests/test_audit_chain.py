@@ -36,27 +36,27 @@ def sample_intent():
         action_type="payout",
         amount=1000,
         currency="INR",
-        recipient="bank_xyz"
+        recipient="bank_xyz",
     )
 
 
 def test_log_evaluation_escalate(audit_writer, db_session, sample_intent):
     """Test logging an escalated decision."""
-    
+
     record = audit_writer.log_evaluation(
         agent_id="agent_1",
         intent=sample_intent,
         model_risk=0.95,
         decision="ESCALATE",
         reason="High ML Risk",
-        token_payload=None
+        token_payload=None,
     )
-    
+
     assert record.id is not None
     assert record.decision == "ESCALATE"
     assert record.model_risk_score == 0.95
     assert record.capability_jti is None
-    
+
     # Verify in DB
     db_record = db_session.query(AuditRecord).filter_by(intent_id="int_audit_1").first()
     assert db_record is not None
@@ -65,7 +65,7 @@ def test_log_evaluation_escalate(audit_writer, db_session, sample_intent):
 
 def test_log_evaluation_allow_with_token(audit_writer, db_session, sample_intent):
     """Test logging an allowed decision with a capability token."""
-    
+
     payload = CapabilityPayload(
         intent_id=sample_intent.intent_id,
         agent_id="agent_1",
@@ -76,23 +76,23 @@ def test_log_evaluation_allow_with_token(audit_writer, db_session, sample_intent
         decision="ALLOW",
         jti="nonce_abc123",
         issued_at=1234567890,
-        expires_at=1234567895
+        expires_at=1234567895,
     )
-    
+
     record = audit_writer.log_evaluation(
         agent_id="agent_1",
         intent=sample_intent,
         model_risk=0.10,
         decision="ALLOW",
         reason="Cleared",
-        token_payload=payload
+        token_payload=payload,
     )
-    
+
     assert record.capability_jti == "nonce_abc123"
-    
+
     # Simulate execution success
     audit_writer.log_execution("int_audit_1", "tx_xyz789")
-    
+
     # Verify DB update
     db_record = db_session.query(AuditRecord).filter_by(intent_id="int_audit_1").first()
     assert db_record.executed_tx_id == "tx_xyz789"
@@ -123,15 +123,11 @@ def test_audit_chain_detects_tampering(audit_writer, db_session, sample_intent):
     )
 
     assert second.previous_hash == first.record_hash
-    valid, checked, invalid_ids = verify_audit_chain(
-        db_session.query(AuditRecord).order_by(AuditRecord.id).all()
-    )
+    valid, checked, invalid_ids = verify_audit_chain(db_session.query(AuditRecord).order_by(AuditRecord.id).all())
     assert valid and checked == 2 and not invalid_ids
 
     second.decision_reason = "tampered"
     db_session.commit()
-    valid, _, invalid_ids = verify_audit_chain(
-        db_session.query(AuditRecord).order_by(AuditRecord.id).all()
-    )
+    valid, _, invalid_ids = verify_audit_chain(db_session.query(AuditRecord).order_by(AuditRecord.id).all())
     assert not valid
     assert second.id in invalid_ids

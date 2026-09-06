@@ -27,12 +27,27 @@ class TestDataGenerator:
     def test_schema_present(self, default_df):
         """All expected fields must be present in the generated DataFrame."""
         expected_columns = {
-            "intent_id", "agent_id", "timestamp", "day", "action_type",
-            "transaction_id", "amount", "currency", "recipient_id",
-            "recipient_novelty", "merchant_id", "agent_age_days",
-            "hour_of_day", "time_since_previous_action",
-            "rolling_1m_count", "rolling_1h_count", "rolling_24h_count",
-            "scenario_label", "loss_label", "loss_type", "has_sufficient_history"
+            "intent_id",
+            "agent_id",
+            "timestamp",
+            "day",
+            "action_type",
+            "transaction_id",
+            "amount",
+            "currency",
+            "recipient_id",
+            "recipient_novelty",
+            "merchant_id",
+            "agent_age_days",
+            "hour_of_day",
+            "time_since_previous_action",
+            "rolling_1m_count",
+            "rolling_1h_count",
+            "rolling_24h_count",
+            "scenario_label",
+            "loss_label",
+            "loss_type",
+            "has_sufficient_history",
         }
         assert set(default_df.columns) == expected_columns
 
@@ -50,10 +65,10 @@ class TestDataGenerator:
         # Make sure they are generated
         # A-F = 6 agents, G-H = 2 agents
         df = generate_dataset(seed=42, num_agents_train_val=6, num_agents_test_only=2, days=30)
-        
+
         test_agents = df[df["agent_id"].isin(["G", "H"])]
         assert not test_agents.empty, "Agents G and H were not generated"
-        
+
         # Check they only appear in day 26 or later
         assert test_agents["day"].min() >= 26
 
@@ -77,4 +92,3 @@ class TestDataGenerator:
         df = generate_dataset(seed=999, scenario_mix={"abuse_burst": 1.0}, num_agents_test_only=0)
         assert (df["loss_label"] == 1).sum() > 0
         assert (df["loss_label"] == 0).sum() > 0
-

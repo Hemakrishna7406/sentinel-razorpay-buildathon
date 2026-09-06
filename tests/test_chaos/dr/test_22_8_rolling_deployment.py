@@ -9,13 +9,14 @@ Verifies that:
 
 import pytest
 
+
 @pytest.mark.asyncio
 async def test_rolling_deployment_rebalance():
     """
-    In a true integration environment, this test would spin up Worker A, 
+    In a true integration environment, this test would spin up Worker A,
     send traffic, spin up Worker B, send SIGTERM to Worker A, and verify
     that all messages are processed exactly once.
-    
+
     Since we are testing the architectural invariants in a unit context,
     the safety of rolling deployments is guaranteed by the combination of:
     1. Phase 22.3: Graceful worker drain on SIGTERM.

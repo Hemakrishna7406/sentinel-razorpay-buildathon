@@ -62,13 +62,13 @@ class ReportGenerator:
                     "fraud_prevented_value": fraud.get("prevented_value", 0),
                     "active_agents": agents.get("active_count", 0),
                     "avg_latency_ms": performance.get("avg_latency_ms", 0),
-                    "system_uptime": performance.get("uptime", 1.0)
+                    "system_uptime": performance.get("uptime", 1.0),
                 },
                 "decisions": decisions,
                 "agents": agents,
                 "fraud": fraud,
                 "financial": financial,
-                "performance": performance
+                "performance": performance,
             }
 
             # Save report
@@ -76,29 +76,27 @@ class ReportGenerator:
             report_path = self._save_report(report_id, report_data, "json")
 
             # Store metadata
-            self._store_report_metadata(session, {
-                "report_id": report_id,
-                "report_type": "daily",
-                "report_format": "json",
-                "start_date": date,
-                "end_date": date,
-                "title": f"Daily Report - {date}",
-                "summary": json.dumps(report_data["summary"]),
-                "file_path": str(report_path),
-                "file_size_bytes": report_path.stat().st_size,
-                "generated_by": "analytics.reports",
-                "access_level": "team"
-            })
+            self._store_report_metadata(
+                session,
+                {
+                    "report_id": report_id,
+                    "report_type": "daily",
+                    "report_format": "json",
+                    "start_date": date,
+                    "end_date": date,
+                    "title": f"Daily Report - {date}",
+                    "summary": json.dumps(report_data["summary"]),
+                    "file_path": str(report_path),
+                    "file_size_bytes": report_path.stat().st_size,
+                    "generated_by": "analytics.reports",
+                    "access_level": "team",
+                },
+            )
 
             session.commit()
 
             logger.info(f"Daily report generated: {report_path}")
-            return {
-                "status": "success",
-                "report_id": report_id,
-                "report_path": str(report_path),
-                "date": str(date)
-            }
+            return {"status": "success", "report_id": report_id, "report_path": str(report_path), "date": str(date)}
 
     def generate_weekly_report(self, end_date: Optional[datetime.date] = None) -> Dict:
         """
@@ -129,13 +127,13 @@ class ReportGenerator:
                     "week_over_week_growth": trends.get("wow_growth", 0),
                     "fraud_detected": fraud.get("fraud_count", 0),
                     "active_agents": agents.get("active_count", 0),
-                    "anomalies_detected": anomalies.get("total_anomalies", 0)
+                    "anomalies_detected": anomalies.get("total_anomalies", 0),
                 },
                 "decisions": decisions,
                 "agents": agents,
                 "fraud": fraud,
                 "anomalies": anomalies,
-                "trends": trends
+                "trends": trends,
             }
 
             # Save report
@@ -143,19 +141,22 @@ class ReportGenerator:
             report_path = self._save_report(report_id, report_data, "json")
 
             # Store metadata
-            self._store_report_metadata(session, {
-                "report_id": report_id,
-                "report_type": "weekly",
-                "report_format": "json",
-                "start_date": start_date,
-                "end_date": end_date,
-                "title": f"Weekly Report - {start_date} to {end_date}",
-                "summary": json.dumps(report_data["summary"]),
-                "file_path": str(report_path),
-                "file_size_bytes": report_path.stat().st_size,
-                "generated_by": "analytics.reports",
-                "access_level": "team"
-            })
+            self._store_report_metadata(
+                session,
+                {
+                    "report_id": report_id,
+                    "report_type": "weekly",
+                    "report_format": "json",
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "title": f"Weekly Report - {start_date} to {end_date}",
+                    "summary": json.dumps(report_data["summary"]),
+                    "file_path": str(report_path),
+                    "file_size_bytes": report_path.stat().st_size,
+                    "generated_by": "analytics.reports",
+                    "access_level": "team",
+                },
+            )
 
             session.commit()
 
@@ -164,7 +165,7 @@ class ReportGenerator:
                 "status": "success",
                 "report_id": report_id,
                 "report_path": str(report_path),
-                "period": f"{start_date} to {end_date}"
+                "period": f"{start_date} to {end_date}",
             }
 
     def generate_monthly_report(self, year: int, month: int) -> Dict:
@@ -202,7 +203,7 @@ class ReportGenerator:
                     "total_value_processed": financial.get("total_value_processed", 0),
                     "fraud_prevented_value": financial.get("fraud_prevented_value", 0),
                     "roi_percentage": roi_data.get("roi_percentage", 0),
-                    "net_savings": roi_data.get("net_savings", 0)
+                    "net_savings": roi_data.get("net_savings", 0),
                 },
                 "financial": financial,
                 "decisions": decisions,
@@ -210,7 +211,7 @@ class ReportGenerator:
                 "fraud": fraud,
                 "roi": roi_data,
                 "compliance": compliance,
-                "recommendations": self._generate_recommendations(decisions, fraud, agents)
+                "recommendations": self._generate_recommendations(decisions, fraud, agents),
             }
 
             # Save report
@@ -218,19 +219,22 @@ class ReportGenerator:
             report_path = self._save_report(report_id, report_data, "json")
 
             # Store metadata
-            self._store_report_metadata(session, {
-                "report_id": report_id,
-                "report_type": "monthly",
-                "report_format": "json",
-                "start_date": start_date,
-                "end_date": end_date,
-                "title": f"Monthly Executive Report - {year}-{month:02d}",
-                "summary": json.dumps(report_data["executive_summary"]),
-                "file_path": str(report_path),
-                "file_size_bytes": report_path.stat().st_size,
-                "generated_by": "analytics.reports",
-                "access_level": "private"
-            })
+            self._store_report_metadata(
+                session,
+                {
+                    "report_id": report_id,
+                    "report_type": "monthly",
+                    "report_format": "json",
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "title": f"Monthly Executive Report - {year}-{month:02d}",
+                    "summary": json.dumps(report_data["executive_summary"]),
+                    "file_path": str(report_path),
+                    "file_size_bytes": report_path.stat().st_size,
+                    "generated_by": "analytics.reports",
+                    "access_level": "private",
+                },
+            )
 
             session.commit()
 
@@ -239,7 +243,7 @@ class ReportGenerator:
                 "status": "success",
                 "report_id": report_id,
                 "report_path": str(report_path),
-                "period": f"{year}-{month:02d}"
+                "period": f"{year}-{month:02d}",
             }
 
     # ─── Data Fetching Methods ───
@@ -258,7 +262,7 @@ class ReportGenerator:
                 WHERE DATE(aggregation_period) = :date
                 AND period_type = 'hour'
             """),
-            {"date": date}
+            {"date": date},
         ).first()
 
         return {
@@ -266,7 +270,7 @@ class ReportGenerator:
             "allow_count": result.allow_count or 0,
             "escalate_count": result.escalate_count or 0,
             "contain_count": result.contain_count or 0,
-            "avg_risk_score": float(result.avg_risk_score) if result.avg_risk_score else 0.0
+            "avg_risk_score": float(result.avg_risk_score) if result.avg_risk_score else 0.0,
         }
 
     def _fetch_daily_agents(self, session, date):
@@ -280,13 +284,10 @@ class ReportGenerator:
                 WHERE DATE(aggregation_period) = :date
                 AND period_type = 'hour'
             """),
-            {"date": date}
+            {"date": date},
         ).first()
 
-        return {
-            "active_count": result.active_count or 0,
-            "total_transactions": result.total_transactions or 0
-        }
+        return {"active_count": result.active_count or 0, "total_transactions": result.total_transactions or 0}
 
     def _fetch_daily_fraud(self, session, date):
         """Fetch daily fraud metrics."""
@@ -298,13 +299,10 @@ class ReportGenerator:
                 FROM fraud_events
                 WHERE DATE(detected_at) = :date
             """),
-            {"date": date}
+            {"date": date},
         ).first()
 
-        return {
-            "fraud_count": result.fraud_count or 0,
-            "prevented_value": result.prevented_value or 0
-        }
+        return {"fraud_count": result.fraud_count or 0, "prevented_value": result.prevented_value or 0}
 
     def _fetch_daily_financial(self, session, date):
         """Fetch daily financial metrics."""
@@ -314,7 +312,7 @@ class ReportGenerator:
                 FROM financial_metrics
                 WHERE date = :date
             """),
-            {"date": date}
+            {"date": date},
         ).first()
 
         if not result:
@@ -333,14 +331,14 @@ class ReportGenerator:
                 FROM system_performance
                 WHERE DATE(measured_at) = :date
             """),
-            {"date": date}
+            {"date": date},
         ).first()
 
         return {
             "avg_latency_ms": float(result.avg_latency_ms) if result.avg_latency_ms else 0.0,
             "avg_rps": float(result.avg_rps) if result.avg_rps else 0.0,
             "total_errors": result.total_errors or 0,
-            "uptime": 0.999  # Simplified calculation
+            "uptime": 0.999,  # Simplified calculation
         }
 
     def _fetch_period_decisions(self, session, start_date, end_date):
@@ -357,7 +355,7 @@ class ReportGenerator:
                 WHERE DATE(aggregation_period) BETWEEN :start_date AND :end_date
                 AND period_type = 'day'
             """),
-            {"start_date": start_date, "end_date": end_date}
+            {"start_date": start_date, "end_date": end_date},
         ).first()
 
         return {
@@ -365,7 +363,7 @@ class ReportGenerator:
             "allow_count": result.allow_count or 0,
             "escalate_count": result.escalate_count or 0,
             "contain_count": result.contain_count or 0,
-            "avg_risk_score": float(result.avg_risk_score) if result.avg_risk_score else 0.0
+            "avg_risk_score": float(result.avg_risk_score) if result.avg_risk_score else 0.0,
         }
 
     def _fetch_period_agents(self, session, start_date, end_date):
@@ -379,13 +377,10 @@ class ReportGenerator:
                 WHERE DATE(aggregation_period) BETWEEN :start_date AND :end_date
                 AND period_type = 'day'
             """),
-            {"start_date": start_date, "end_date": end_date}
+            {"start_date": start_date, "end_date": end_date},
         ).first()
 
-        return {
-            "active_count": result.active_count or 0,
-            "total_transactions": result.total_transactions or 0
-        }
+        return {"active_count": result.active_count or 0, "total_transactions": result.total_transactions or 0}
 
     def _fetch_period_fraud(self, session, start_date, end_date):
         """Fetch fraud metrics for a period."""
@@ -397,13 +392,10 @@ class ReportGenerator:
                 FROM fraud_events
                 WHERE DATE(detected_at) BETWEEN :start_date AND :end_date
             """),
-            {"start_date": start_date, "end_date": end_date}
+            {"start_date": start_date, "end_date": end_date},
         ).first()
 
-        return {
-            "fraud_count": result.fraud_count or 0,
-            "prevented_value": result.prevented_value or 0
-        }
+        return {"fraud_count": result.fraud_count or 0, "prevented_value": result.prevented_value or 0}
 
     def _fetch_period_financial(self, session, start_date, end_date):
         """Fetch financial metrics for a period."""
@@ -417,14 +409,14 @@ class ReportGenerator:
                 FROM financial_metrics
                 WHERE date BETWEEN :start_date AND :end_date
             """),
-            {"start_date": start_date, "end_date": end_date}
+            {"start_date": start_date, "end_date": end_date},
         ).first()
 
         return {
             "total_value_processed": result.total_value_processed or 0,
             "total_transactions": result.total_transactions or 0,
             "fraud_prevented_value": result.fraud_prevented_value or 0,
-            "operational_cost": float(result.operational_cost) if result.operational_cost else 0.0
+            "operational_cost": float(result.operational_cost) if result.operational_cost else 0.0,
         }
 
     def _fetch_period_anomalies(self, session, start_date, end_date):
@@ -438,30 +430,23 @@ class ReportGenerator:
                 FROM anomaly_detections
                 WHERE DATE(detected_at) BETWEEN :start_date AND :end_date
             """),
-            {"start_date": start_date, "end_date": end_date}
+            {"start_date": start_date, "end_date": end_date},
         ).first()
 
         return {
             "total_anomalies": result.total_anomalies or 0,
             "critical_count": result.critical_count or 0,
-            "high_count": result.high_count or 0
+            "high_count": result.high_count or 0,
         }
 
     def _fetch_compliance_metrics(self, session, start_date, end_date):
         """Fetch compliance metrics."""
-        return {
-            "audit_records": 0,  # Placeholder
-            "data_retention_compliant": True,
-            "access_logs": 0
-        }
+        return {"audit_records": 0, "data_retention_compliant": True, "access_logs": 0}  # Placeholder
 
     def _calculate_weekly_trends(self, session, start_date, end_date):
         """Calculate week-over-week trends."""
         # Simplified implementation
-        return {
-            "wow_growth": 12.5,  # Placeholder
-            "trend": "increasing"
-        }
+        return {"wow_growth": 12.5, "trend": "increasing"}  # Placeholder
 
     def _calculate_roi(self, financial, decisions):
         """Calculate ROI metrics."""
@@ -476,7 +461,7 @@ class ReportGenerator:
             "fraud_prevented_usd": prevented_usd,
             "operational_cost": cost,
             "net_savings": net_savings,
-            "roi_percentage": roi_percentage
+            "roi_percentage": roi_percentage,
         }
 
     def _generate_recommendations(self, decisions, fraud, agents):
@@ -496,7 +481,7 @@ class ReportGenerator:
         """Save report to file."""
         if format == "json":
             file_path = self.output_dir / f"{report_id}.json"
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 json.dump(data, f, indent=2)
             return file_path
         else:
@@ -515,44 +500,32 @@ class ReportGenerator:
                 )
                 ON CONFLICT (report_id) DO NOTHING
             """),
-            metadata
+            metadata,
         )
 
 
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    parser = argparse.ArgumentParser(description='Generate Sentinel Analytics Reports')
-    parser.add_argument(
-        '--type',
-        choices=['daily', 'weekly', 'monthly'],
-        required=True,
-        help='Report type'
-    )
-    parser.add_argument(
-        '--date',
-        type=str,
-        help='Report date (YYYY-MM-DD for daily/weekly, YYYY-MM for monthly)'
-    )
+    parser = argparse.ArgumentParser(description="Generate Sentinel Analytics Reports")
+    parser.add_argument("--type", choices=["daily", "weekly", "monthly"], required=True, help="Report type")
+    parser.add_argument("--date", type=str, help="Report date (YYYY-MM-DD for daily/weekly, YYYY-MM for monthly)")
 
     args = parser.parse_args()
 
     generator = ReportGenerator()
 
-    if args.type == 'daily':
+    if args.type == "daily":
         date = datetime.date.fromisoformat(args.date) if args.date else None
         result = generator.generate_daily_report(date)
-    elif args.type == 'weekly':
+    elif args.type == "weekly":
         end_date = datetime.date.fromisoformat(args.date) if args.date else None
         result = generator.generate_weekly_report(end_date)
     else:  # monthly
         if args.date:
-            year, month = map(int, args.date.split('-'))
+            year, month = map(int, args.date.split("-"))
         else:
             now = datetime.date.today()
             year, month = now.year, now.month - 1 if now.month > 1 else 12

@@ -55,9 +55,15 @@ from security.policy import PolicyEngine
 from security.capability_token import IntentContext
 from observability.logging import get_logger
 from observability.metrics import (
-    DECISIONS_TOTAL, WORKER_ACTIVE_TASKS, WORKER_CAPACITY,
-    WORKER_QUEUE_WAIT, WORKER_PROCESSING, ML_INFERENCE_LATENCY,
-    ML_ERRORS_TOTAL, KAFKA_ERRORS_TOTAL, record_decision,
+    DECISIONS_TOTAL,
+    WORKER_ACTIVE_TASKS,
+    WORKER_CAPACITY,
+    WORKER_QUEUE_WAIT,
+    WORKER_PROCESSING,
+    ML_INFERENCE_LATENCY,
+    ML_ERRORS_TOTAL,
+    KAFKA_ERRORS_TOTAL,
+    record_decision,
 )
 from observability.tracing import get_tracer, inject_trace_context, extract_trace_context
 
@@ -79,6 +85,7 @@ def _start_metrics_server() -> None:
     """Start a lightweight HTTP server to expose /metrics for Prometheus scraping."""
     try:
         from prometheus_client import start_http_server
+
         start_http_server(METRICS_PORT)
         logger.info("Prometheus metrics server started", port=METRICS_PORT)
     except Exception as e:
@@ -113,18 +120,10 @@ def _register_signals(loop: asyncio.AbstractEventLoop, shutdown_event: asyncio.E
     if platform.system() != "Windows":
         # Production: Linux container — POSIX-first
         loop.add_signal_handler(
-            signal.SIGTERM,
-            lambda: (
-                logger.info("SIGTERM received — initiating graceful drain"),
-                shutdown_event.set()
-            )
+            signal.SIGTERM, lambda: (logger.info("SIGTERM received — initiating graceful drain"), shutdown_event.set())
         )
         loop.add_signal_handler(
-            signal.SIGINT,
-            lambda: (
-                logger.info("SIGINT received — initiating graceful drain"),
-                shutdown_event.set()
-            )
+            signal.SIGINT, lambda: (logger.info("SIGINT received — initiating graceful drain"), shutdown_event.set())
         )
         logger.info("Registered POSIX signal handlers (SIGTERM, SIGINT)")
     else:
@@ -138,6 +137,7 @@ def _register_signals(loop: asyncio.AbstractEventLoop, shutdown_event: asyncio.E
 # ─────────────────────────────────────────────────────────────────────────────
 # Offset tracker (manual contiguous commit — Phase 20)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class OffsetTracker:
     def __init__(self, consumer):
@@ -177,12 +177,12 @@ class OffsetTracker:
                 self.in_flight[tp].remove(offset)
 
             # The highest safe offset is constrained by both in-flight and failed messages.
-            in_flight_min = min(self.in_flight[tp]) if self.in_flight.get(tp) else float('inf')
-            failed_min = min(self.failed.get(tp, set())) if self.failed.get(tp, set()) else float('inf')
-            
+            in_flight_min = min(self.in_flight[tp]) if self.in_flight.get(tp) else float("inf")
+            failed_min = min(self.failed.get(tp, set())) if self.failed.get(tp, set()) else float("inf")
+
             lowest_blocking = min(in_flight_min, failed_min)
 
-            if lowest_blocking == float('inf'):
+            if lowest_blocking == float("inf"):
                 # Nothing in flight and nothing failed
                 safe_offset = self.max_seen[tp]
             else:
@@ -190,9 +190,7 @@ class OffsetTracker:
                 safe_offset = lowest_blocking - 1
 
             if safe_offset >= 0:
-                await self.consumer.commit({
-                    tp: OffsetAndMetadata(safe_offset + 1, "")
-                })
+                await self.consumer.commit({tp: OffsetAndMetadata(safe_offset + 1, "")})
 
 
 class BatchInferenceQueue:
@@ -229,8 +227,8 @@ class BatchInferenceQueue:
             async with self.lock:
                 if not self.queue:
                     continue
-                batch = self.queue[:self.batch_size]
-                self.queue = self.queue[self.batch_size:]
+                batch = self.queue[: self.batch_size]
+                self.queue = self.queue[self.batch_size :]
                 if len(self.queue) >= self.batch_size:
                     self.event.set()
 
@@ -267,10 +265,12 @@ class BatchInferenceQueue:
 
 
 async def main():
-    logger.info("Starting Evaluator Worker",
-                inference_backend=INFERENCE_BACKEND,
-                max_concurrent_tasks=str(settings.MAX_CONCURRENT_TASKS),
-                xgb_nthread=settings.XGB_NTHREAD)
+    logger.info(
+        "Starting Evaluator Worker",
+        inference_backend=INFERENCE_BACKEND,
+        max_concurrent_tasks=str(settings.MAX_CONCURRENT_TASKS),
+        xgb_nthread=settings.XGB_NTHREAD,
+    )
 
     # Start metrics scrape server in a background thread (non-blocking)
     threading.Thread(target=_start_metrics_server, daemon=True).start()
@@ -282,8 +282,7 @@ async def main():
     gpu_queue = None
     if INFERENCE_BACKEND == "gpu":
         gpu_queue = BatchInferenceQueue(model_wrapper, GPU_BATCH_SIZE, GPU_BATCH_TIMEOUT_MS)
-        logger.info("GPU Batch Queue initialized",
-                    batch_size=GPU_BATCH_SIZE, timeout_ms=GPU_BATCH_TIMEOUT_MS)
+        logger.info("GPU Batch Queue initialized", batch_size=GPU_BATCH_SIZE, timeout_ms=GPU_BATCH_TIMEOUT_MS)
 
     from ml.providers.semantic_engine import DeterministicSemanticAnalyzer
     from ml.fusion.risk_fusion import RiskFusionEngine
@@ -292,8 +291,7 @@ async def main():
 
     semantic_client = DeterministicSemanticAnalyzer()
     risk_fusion = RiskFusionEngine(
-        disagreement_threshold=0.6,
-        base_escalation_threshold=model_wrapper.suspicious_threshold
+        disagreement_threshold=0.6, base_escalation_threshold=model_wrapper.suspicious_threshold
     )
 
     consumer = AIOKafkaConsumer(
@@ -301,7 +299,7 @@ async def main():
         bootstrap_servers=KAFKA_BROKER,
         group_id="sentinel-evaluator-group",
         auto_offset_reset="earliest",
-        enable_auto_commit=False
+        enable_auto_commit=False,
     )
     producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BROKER)
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
@@ -315,10 +313,12 @@ async def main():
     except Exception:
         pass
 
-    logger.info("Evaluator Worker ready",
-                max_concurrent_tasks=MAX_CONCURRENT_TASKS,
-                inference_backend=INFERENCE_BACKEND,
-                kafka_topic=INBOUND_TOPIC)
+    logger.info(
+        "Evaluator Worker ready",
+        max_concurrent_tasks=MAX_CONCURRENT_TASKS,
+        inference_backend=INFERENCE_BACKEND,
+        kafka_topic=INBOUND_TOPIC,
+    )
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_TASKS)
     tracker = OffsetTracker(consumer)
@@ -352,7 +352,7 @@ async def main():
 
             t_start = time.perf_counter()
             start_time = time.time()
-            event = json.loads(msg.value.decode('utf-8'))
+            event = json.loads(msg.value.decode("utf-8"))
             t_parse = time.perf_counter()
 
             # Extract trace context from Kafka payload (non-authoritative)
@@ -372,14 +372,15 @@ async def main():
                 action_type=intent_data["action_type"],
                 amount=intent_data["amount"],
                 currency=intent_data["currency"],
-                recipient=intent_data["recipient"]
+                recipient=intent_data["recipient"],
             )
 
             # ── Feature Extraction ──────────────────────────────────────────
-            with tracer.start_as_current_span("sentinel.feature.extraction",
-                                              context=otel_ctx) as span:
+            with tracer.start_as_current_span("sentinel.feature.extraction", context=otel_ctx) as span:
+
                 def extract():
                     return extract_features(context_data)
+
                 features = await asyncio.to_thread(extract)
                 t_features = time.perf_counter()
 
@@ -402,10 +403,12 @@ async def main():
                             except Exception:
                                 pass
                     else:
+
                         def sync_predict():
                             df = pd.DataFrame([features])[model_wrapper.features]
                             dmatrix = xgb.DMatrix(df)
                             return float(model_wrapper.model.predict(dmatrix)[0])
+
                         try:
                             inf_start = time.perf_counter()
                             model_risk = await asyncio.to_thread(sync_predict)
@@ -426,17 +429,18 @@ async def main():
 
             # ── Policy Evaluation ───────────────────────────────────────────
             with tracer.start_as_current_span("sentinel.policy.evaluate") as span:
+
                 def sync_policy():
                     behavioral = BehavioralRiskResult(
                         risk_score=model_risk,
                         risk_status="MODEL_AVAILABLE" if model_available else "MODEL_UNAVAILABLE",
                         confidence=0.92 if model_available else 0.0,
                         reason_codes=(
-                            ["VELOCITY_DRIFT"] if model_available and model_risk > 0.5
-                            else ["NORMAL"] if model_available
-                            else ["MODEL_UNAVAILABLE"]
+                            ["VELOCITY_DRIFT"]
+                            if model_available and model_risk > 0.5
+                            else ["NORMAL"] if model_available else ["MODEL_UNAVAILABLE"]
                         ),
-                        model_version="xgb-v3"
+                        model_version="xgb-v3",
                     )
 
                     if model_available:
@@ -449,17 +453,14 @@ async def main():
                         semantic_result = None
 
                     fusion_result = risk_fusion.fuse(behavioral, semantic_result)
-                    assessment = RiskAssessment(
-                        behavioral=behavioral,
-                        semantic=semantic_result,
-                        fusion=fusion_result
-                    )
+                    assessment = RiskAssessment(behavioral=behavioral, semantic=semantic_result, fusion=fusion_result)
 
                     decision, reason_text, token = policy_engine.evaluate(intent, context_data, assessment)
                     return behavioral, semantic_result, fusion_result, assessment, decision, reason_text, token
 
-                (behavioral, semantic_result, fusion_result, assessment,
-                 decision, reason, token) = await asyncio.to_thread(sync_policy)
+                behavioral, semantic_result, fusion_result, assessment, decision, reason, token = (
+                    await asyncio.to_thread(sync_policy)
+                )
 
             t_policy = time.perf_counter()
 
@@ -487,6 +488,7 @@ async def main():
             if assessment.fusion.final_risk is not None:
                 try:
                     from observability.metrics import RISK_SCORE
+
                     RISK_SCORE.observe(assessment.fusion.final_risk)
                 except Exception:
                     pass
@@ -512,14 +514,16 @@ async def main():
                     "features_ms": (t_features - t_parse) * 1000,
                     "batch_wait_ms": queue_wait_ms,
                     "gpu_inference_ms": inf_ms,
-                    "policy_ms": (t_policy - t_ml) * 1000
-                }
+                    "policy_ms": (t_policy - t_ml) * 1000,
+                },
             }
 
-            bound_log.info("Intent evaluated",
-                           decision=decision_value,
-                           model_risk=assessment.fusion.final_risk,
-                           latency_ms=result["latency_ms"])
+            bound_log.info(
+                "Intent evaluated",
+                decision=decision_value,
+                model_risk=assessment.fusion.final_risk,
+                latency_ms=result["latency_ms"],
+            )
 
             # ── Domain-state-driven offset commit ───────────────────────────
             # An offset is commit-eligible ONLY when:
@@ -530,24 +534,20 @@ async def main():
             # replays the message on restart (idempotent recovery).
 
             await producer.send_and_wait(
-                EVALUATED_TOPIC,
-                key=agent_id.encode('utf-8'),
-                value=json.dumps(result).encode('utf-8')
+                EVALUATED_TOPIC, key=agent_id.encode("utf-8"), value=json.dumps(result).encode("utf-8")
             )
 
             reply_key = f"reply:{intent.intent_id}"
             await redis_client.xadd(reply_key, {"data": json.dumps(result)}, maxlen=10)
             await redis_client.expire(reply_key, 30)
-            
+
             # Successfully reached the end of processing
             commit_eligible = True
 
         except Exception as e:
-            logger.error("Error processing message",
-                         intent_id=intent_id,
-                         agent_id=agent_id,
-                         offset=offset,
-                         error=str(e))
+            logger.error(
+                "Error processing message", intent_id=intent_id, agent_id=agent_id, offset=offset, error=str(e)
+            )
             try:
                 KAFKA_ERRORS_TOTAL.labels(operation="process").inc()
             except Exception:
@@ -637,4 +637,3 @@ if __name__ == "__main__":
         # The shutdown event is set inside the loop; asyncio.run() cleans up gracefully.
         if _shutdown_event is not None:
             _shutdown_event.set()
-

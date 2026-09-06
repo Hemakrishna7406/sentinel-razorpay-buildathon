@@ -11,6 +11,7 @@ API_URL = "http://localhost:8000"
 
 SCENARIOS = ["normal", "suspicious", "malicious", "replay", "redis_failure"]
 
+
 async def test_health():
     """Test API health"""
     print("🔍 Testing API health...")
@@ -27,14 +28,12 @@ async def test_health():
             print(f"❌ Cannot connect to API: {e}")
             return False
 
+
 async def test_scenario_endpoint(scenario: str):
     """Test a single scenario endpoint"""
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(
-                f"{API_URL}/demo/scenarios/{scenario}",
-                timeout=10.0
-            )
+            resp = await client.post(f"{API_URL}/demo/scenarios/{scenario}", timeout=10.0)
             if resp.status_code == 200:
                 result = resp.json()
                 print(f"  ✅ {scenario}: {result}")
@@ -45,6 +44,7 @@ async def test_scenario_endpoint(scenario: str):
         except Exception as e:
             print(f"  ❌ {scenario}: {e}")
             return False
+
 
 async def test_sse_stream():
     """Test SSE stream endpoint"""
@@ -69,6 +69,7 @@ async def test_sse_stream():
         except Exception as e:
             print(f"❌ SSE stream error: {e}")
             return False
+
 
 async def main():
     print("=" * 60)
@@ -123,6 +124,7 @@ async def main():
     else:
         print("\n⚠️  Some endpoints failed. Check the logs above.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

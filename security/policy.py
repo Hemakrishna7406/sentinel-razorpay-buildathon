@@ -12,19 +12,22 @@ from security.nl_policy import NLPolicyCompiler
 
 from ml.schema import BehavioralRiskResult, FusionResult, RiskAssessment, Decision
 
+
 class PolicyEngine:
     def __init__(self, suspicious_threshold: float = 0.15):
         self.suspicious_threshold = suspicious_threshold
         self.token_manager = TokenManager()
         self.nl_compiler = NLPolicyCompiler()
-        
-    def evaluate(self, intent: IntentContext, context_features: Dict[str, Any], assessment: RiskAssessment) -> Tuple[Decision, str, Optional[str]]:
+
+    def evaluate(
+        self, intent: IntentContext, context_features: Dict[str, Any], assessment: RiskAssessment
+    ) -> Tuple[Decision, str, Optional[str]]:
         """
         Evaluate an intent and return (decision, reason, capability_token).
         Decision is ALLOW, ESCALATE, or CONTAIN. Non-ALLOW decisions never
         receive a capability token.
         """
-        
+
         # Accepting a numeric score keeps the small synchronous simulator
         # backward-compatible; production callers pass a RiskAssessment.
         if isinstance(assessment, (int, float)):
@@ -57,25 +60,25 @@ class PolicyEngine:
             "recipient": intent.recipient,
             "model_risk": assessment.behavioral.risk_score,
             "semantic_risk": assessment.semantic.risk_score if assessment.semantic else None,
-            "fusion_risk": assessment.fusion.final_risk
+            "fusion_risk": assessment.fusion.final_risk,
         }
         should_escalate, nl_reason = self.nl_compiler.evaluate(nl_context)
         if should_escalate:
             return Decision.ESCALATE, nl_reason, None
-        
+
         # Rule 1: Insufficient history -> Conservative escalation
         if context_features.get("has_sufficient_history", 1) == 0:
             if intent.amount > 50000:
                 return Decision.ESCALATE, "Insufficient history and amount exceeds new agent limit.", None
-                
+
         # Rule 2: Absolute bounds
         if intent.amount > 10000000:
             return Decision.CONTAIN, "Amount exceeds absolute system limit.", None
-            
+
         # Fusion Evaluation
         if assessment.fusion.decision in {Decision.ESCALATE, Decision.CONTAIN}:
             return assessment.fusion.decision, assessment.fusion.reason, None
-            
+
         # Default ALLOW
         try:
             token = self.token_manager.issue_token(intent, Decision.ALLOW.value)

@@ -38,11 +38,13 @@ with open(SCENARIOS_PATH, "r") as f:
 
 def print_header():
     console.print()
-    console.print(Panel.fit(
-        "[bold cyan]SENTINEL INTERACTIVE DEMO[/bold cyan]\n"
-        "Zero-Trust Authorization Control Plane for Autonomous Financial Agents",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]SENTINEL INTERACTIVE DEMO[/bold cyan]\n"
+            "Zero-Trust Authorization Control Plane for Autonomous Financial Agents",
+            border_style="cyan",
+        )
+    )
     console.print()
 
 
@@ -71,16 +73,9 @@ async def run_scenario_normal():
     intent_id = f"INT-{uuid.uuid4().hex[:6]}"
     idempotency_key = f"demo-{uuid.uuid4().hex[:8]}"
 
-    payload = {
-        "intent_id": intent_id,
-        **scenario["intent"],
-        "context": {}
-    }
+    payload = {"intent_id": intent_id, **scenario["intent"], "context": {}}
 
-    headers = {
-        "Idempotency-Key": idempotency_key,
-        "X-Sentinel-Mode": "govern"
-    }
+    headers = {"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"}
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         progress.add_task(description="Evaluating authorization...", total=None)
@@ -117,16 +112,9 @@ async def run_scenario_suspicious():
     intent_id = f"INT-{uuid.uuid4().hex[:6]}"
     idempotency_key = f"demo-{uuid.uuid4().hex[:8]}"
 
-    payload = {
-        "intent_id": intent_id,
-        **scenario["intent"],
-        "context": {}
-    }
+    payload = {"intent_id": intent_id, **scenario["intent"], "context": {}}
 
-    headers = {
-        "Idempotency-Key": idempotency_key,
-        "X-Sentinel-Mode": "govern"
-    }
+    headers = {"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"}
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         progress.add_task(description="Evaluating authorization...", total=None)
@@ -158,16 +146,9 @@ async def run_scenario_malicious():
     intent_id = f"INT-{uuid.uuid4().hex[:6]}"
     idempotency_key = f"demo-{uuid.uuid4().hex[:8]}"
 
-    payload = {
-        "intent_id": intent_id,
-        **scenario["intent"],
-        "context": {}
-    }
+    payload = {"intent_id": intent_id, **scenario["intent"], "context": {}}
 
-    headers = {
-        "Idempotency-Key": idempotency_key,
-        "X-Sentinel-Mode": "govern"
-    }
+    headers = {"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"}
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         progress.add_task(description="Evaluating authorization...", total=None)
@@ -199,16 +180,9 @@ async def run_scenario_replay():
     intent_id = f"INT-{uuid.uuid4().hex[:6]}"
     idempotency_key = f"demo-{uuid.uuid4().hex[:8]}"  # Same key for both requests
 
-    payload = {
-        "intent_id": intent_id,
-        **scenario["first_intent"],
-        "context": {}
-    }
+    payload = {"intent_id": intent_id, **scenario["first_intent"], "context": {}}
 
-    headers = {
-        "Idempotency-Key": idempotency_key,
-        "X-Sentinel-Mode": "govern"
-    }
+    headers = {"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"}
 
     # First request
     console.print("  [bold cyan]First Request:[/bold cyan]")
@@ -228,11 +202,7 @@ async def run_scenario_replay():
     # Second request with same idempotency key
     console.print("\n  [bold cyan]Second Request (Same Idempotency Key):[/bold cyan]")
     intent_id_2 = f"INT-{uuid.uuid4().hex[:6]}"
-    payload_2 = {
-        "intent_id": intent_id_2,
-        **scenario["second_intent"],
-        "context": {}
-    }
+    payload_2 = {"intent_id": intent_id_2, **scenario["second_intent"], "context": {}}
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         progress.add_task(description="Processing replay attempt...", total=None)
@@ -310,11 +280,11 @@ async def run_all_scenarios():
 
     # Summary table
     console.print("\n")
-    console.print(Panel.fit(
-        "[bold green]✓ Demo Complete[/bold green]\n"
-        "All 5 scenarios executed successfully",
-        border_style="green"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]✓ Demo Complete[/bold green]\n" "All 5 scenarios executed successfully", border_style="green"
+        )
+    )
 
     table = Table(title="Demo Summary")
     table.add_column("Scenario", style="cyan")
@@ -328,12 +298,7 @@ async def run_all_scenarios():
         latency = result.get("timings", {}).get("total_ms", 0)
 
         decision_color = "green" if decision == "ALLOW" else "yellow" if decision == "ESCALATE" else "red"
-        table.add_row(
-            name,
-            f"[{decision_color}]{decision}[/{decision_color}]",
-            token,
-            f"{latency:.1f}ms"
-        )
+        table.add_row(name, f"[{decision_color}]{decision}[/{decision_color}]", token, f"{latency:.1f}ms")
 
     console.print(table)
     console.print()

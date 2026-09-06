@@ -26,58 +26,65 @@ from typing import Optional
 
 class ThreatActor(Enum):
     """Threat actors / failure sources from threat-model.md §3."""
-    NONE = "none"                  # Legitimate behavior or insufficient info
-    COMPROMISED = "compromised"    # §5A: Valid auth, anomalous behavior
+
+    NONE = "none"  # Legitimate behavior or insufficient info
+    COMPROMISED = "compromised"  # §5A: Valid auth, anomalous behavior
     MISCONFIGURED = "misconfigured"  # §5B: Functioning as programmed but wrong config
     BEHAVIORAL_DRIFT = "behavioral_drift"  # §5C: Environmental / model change
 
 
 class ExpectedResponse(Enum):
     """Expected system response for each scenario."""
+
     ALLOW = "ALLOW"
     ESCALATE = "ESCALATE"
     CONTAIN = "CONTAIN"
     CONSERVATIVE_ESCALATE = "CONSERVATIVE_ESCALATE"  # New agent special case
-    SUSPICIOUS_THEN_SAFE = "SUSPICIOUS_THEN_SAFE"    # Benign drift trajectory
+    SUSPICIOUS_THEN_SAFE = "SUSPICIOUS_THEN_SAFE"  # Benign drift trajectory
 
 
 class LossType(Enum):
     """Ground truth loss classification — what actually happened."""
-    NONE = None                           # No loss event
+
+    NONE = None  # No loss event
     UNAUTHORIZED_ACTION = "unauthorized_action"  # Compromised agent
-    POLICY_VIOLATION = "policy_violation"        # Misconfigured agent
+    POLICY_VIOLATION = "policy_violation"  # Misconfigured agent
 
 
 @dataclass(frozen=True)
 class AmountDistribution:
     """Describes the monetary distribution for a scenario (in paise)."""
-    mean: int           # Mean amount in paise
-    std: int            # Standard deviation in paise
-    min_amount: int     # Floor
-    max_amount: int     # Ceiling
-    p95: int            # 95th percentile
+
+    mean: int  # Mean amount in paise
+    std: int  # Standard deviation in paise
+    min_amount: int  # Floor
+    max_amount: int  # Ceiling
+    p95: int  # 95th percentile
 
 
 @dataclass(frozen=True)
 class VelocityProfile:
     """Describes the action rate for a scenario."""
+
     actions_per_hour_mean: float
     actions_per_hour_std: float
-    burst_factor: float = 1.0    # Multiplier during active period
+    burst_factor: float = 1.0  # Multiplier during active period
 
 
 @dataclass(frozen=True)
 class TemporalProfile:
     """Describes when the agent operates."""
+
     typical_hour_start: int  # 0-23
-    typical_hour_end: int    # 0-23
+    typical_hour_end: int  # 0-23
     operates_outside_hours: bool = False
 
 
 @dataclass(frozen=True)
 class RecipientProfile:
     """Describes recipient diversity."""
-    known_recipient_ratio: float   # Fraction of actions to known recipients
+
+    known_recipient_ratio: float  # Fraction of actions to known recipients
     unique_recipients_per_day: int
 
 
@@ -90,14 +97,15 @@ class ScenarioDefinition:
     The scenario definitions drive data generation (ml/data_generator.py),
     threat modeling (threat-model.md), and evaluation expectations.
     """
+
     name: str
-    code: str                          # Single-letter code (A-G)
+    code: str  # Single-letter code (A-G)
     description: str
     threat_actor: ThreatActor
     expected_response: ExpectedResponse
-    loss_label: int                    # 0 = no loss, 1 = loss event
+    loss_label: int  # 0 = no loss, 1 = loss event
     loss_type: LossType
-    has_sufficient_history: bool       # Whether the agent has enough baseline
+    has_sufficient_history: bool  # Whether the agent has enough baseline
 
     # Behavioral parameters
     amount: AmountDistribution
@@ -109,11 +117,11 @@ class ScenarioDefinition:
     action_mix: dict = field(default_factory=dict)
 
     # Scenario-specific flags
-    is_legitimate: bool = True         # Whether this is legitimate behavior
+    is_legitimate: bool = True  # Whether this is legitimate behavior
     drift_onset_day: Optional[int] = None  # Day when drift begins (D, G)
     spike_start_day: Optional[int] = None  # Day when spike begins (E)
-    spike_end_day: Optional[int] = None    # Day when spike ends (E)
-    spike_volume_multiplier: float = 1.0   # Volume multiplier during spike (E)
+    spike_end_day: Optional[int] = None  # Day when spike ends (E)
+    spike_volume_multiplier: float = 1.0  # Volume multiplier during spike (E)
 
     # Human-readable notes for documentation
     key_signal: str = ""
@@ -137,9 +145,9 @@ SCENARIO_NORMAL = ScenarioDefinition(
     loss_type=LossType.NONE,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=324000,    # ₹3,240 in paise
-        std=150000,     # ₹1,500
-        min_amount=10000,   # ₹100
+        mean=324000,  # ₹3,240 in paise
+        std=150000,  # ₹1,500
+        min_amount=10000,  # ₹100
         max_amount=890000,  # ₹8,900
         p95=890000,
     ),
@@ -173,9 +181,9 @@ SCENARIO_ABUSE_BURST = ScenarioDefinition(
     loss_type=LossType.UNAUTHORIZED_ACTION,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=1500000,   # ₹15,000 — much higher than baseline
-        std=800000,     # ₹8,000 — high variance
-        min_amount=500000,   # ₹5,000
+        mean=1500000,  # ₹15,000 — much higher than baseline
+        std=800000,  # ₹8,000 — high variance
+        min_amount=500000,  # ₹5,000
         max_amount=5000000,  # ₹50,000
         p95=4000000,
     ),
@@ -190,7 +198,7 @@ SCENARIO_ABUSE_BURST = ScenarioDefinition(
         operates_outside_hours=True,  # Active at abnormal times
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.15,    # Mostly novel recipients
+        known_recipient_ratio=0.15,  # Mostly novel recipients
         unique_recipients_per_day=50,  # Much higher than normal
     ),
     action_mix={"refund": 0.10, "retry": 0.05, "checkout": 0.05, "payout": 0.80},
@@ -214,8 +222,8 @@ SCENARIO_MISCONFIGURED = ScenarioDefinition(
     loss_type=LossType.POLICY_VIOLATION,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=1200000,   # ₹12,000 — higher than typical policy allows
-        std=200000,     # ₹2,000 — very consistent (not random)
+        mean=1200000,  # ₹12,000 — higher than typical policy allows
+        std=200000,  # ₹2,000 — very consistent (not random)
         min_amount=800000,
         max_amount=1500000,
         p95=1400000,
@@ -229,7 +237,7 @@ SCENARIO_MISCONFIGURED = ScenarioDefinition(
         typical_hour_end=19,
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.90,   # Legitimate recipients
+        known_recipient_ratio=0.90,  # Legitimate recipients
         unique_recipients_per_day=12,
     ),
     action_mix={"refund": 0.90, "retry": 0.05, "checkout": 0.03, "payout": 0.02},
@@ -251,14 +259,14 @@ SCENARIO_SLOW_ABUSE = ScenarioDefinition(
     loss_type=LossType.UNAUTHORIZED_ACTION,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=800000,    # ₹8,000 — near p95 of normal
-        std=100000,     # ₹1,000 — tightly clustered near threshold
+        mean=800000,  # ₹8,000 — near p95 of normal
+        std=100000,  # ₹1,000 — tightly clustered near threshold
         min_amount=700000,
         max_amount=950000,
         p95=900000,
     ),
     velocity=VelocityProfile(
-        actions_per_hour_mean=0.5,   # Low velocity to avoid detection
+        actions_per_hour_mean=0.5,  # Low velocity to avoid detection
         actions_per_hour_std=0.2,
     ),
     temporal=TemporalProfile(
@@ -266,7 +274,7 @@ SCENARIO_SLOW_ABUSE = ScenarioDefinition(
         typical_hour_end=19,
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.40,   # Moderate recipient novelty
+        known_recipient_ratio=0.40,  # Moderate recipient novelty
         unique_recipients_per_day=8,
     ),
     action_mix={"refund": 0.30, "retry": 0.10, "checkout": 0.10, "payout": 0.50},
@@ -291,14 +299,14 @@ SCENARIO_SEASONAL_SPIKE = ScenarioDefinition(
     loss_type=LossType.NONE,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=324000,    # Same as normal — amounts don't change
+        mean=324000,  # Same as normal — amounts don't change
         std=150000,
         min_amount=10000,
         max_amount=890000,
         p95=890000,
     ),
     velocity=VelocityProfile(
-        actions_per_hour_mean=2.25,   # Base rate (multiplied by spike_volume_multiplier)
+        actions_per_hour_mean=2.25,  # Base rate (multiplied by spike_volume_multiplier)
         actions_per_hour_std=0.75,
         burst_factor=1.0,
     ),
@@ -307,7 +315,7 @@ SCENARIO_SEASONAL_SPIKE = ScenarioDefinition(
         typical_hour_end=19,
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.75,    # Slightly more new recipients during sale
+        known_recipient_ratio=0.75,  # Slightly more new recipients during sale
         unique_recipients_per_day=40,  # Higher unique count but expected
     ),
     action_mix={"refund": 0.50, "retry": 0.15, "checkout": 0.30, "payout": 0.05},
@@ -332,7 +340,7 @@ SCENARIO_NEW_AGENT = ScenarioDefinition(
     loss_type=LossType.NONE,
     has_sufficient_history=False,
     amount=AmountDistribution(
-        mean=250000,    # ₹2,500 — moderate
+        mean=250000,  # ₹2,500 — moderate
         std=100000,
         min_amount=5000,
         max_amount=500000,
@@ -347,7 +355,7 @@ SCENARIO_NEW_AGENT = ScenarioDefinition(
         typical_hour_end=20,
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.50,   # Mix — everything is "new" for a new agent
+        known_recipient_ratio=0.50,  # Mix — everything is "new" for a new agent
         unique_recipients_per_day=10,
     ),
     action_mix={"refund": 0.40, "retry": 0.30, "checkout": 0.20, "payout": 0.10},
@@ -370,19 +378,19 @@ SCENARIO_BENIGN_DRIFT = ScenarioDefinition(
     loss_type=LossType.NONE,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=324000,    # Same amounts as before
+        mean=324000,  # Same amounts as before
         std=150000,
         min_amount=10000,
         max_amount=890000,
         p95=890000,
     ),
     velocity=VelocityProfile(
-        actions_per_hour_mean=2.5,   # Slightly different rate
+        actions_per_hour_mean=2.5,  # Slightly different rate
         actions_per_hour_std=0.8,
     ),
     temporal=TemporalProfile(
         typical_hour_start=11,  # Changed from 9→11
-        typical_hour_end=23,    # Changed from 19→23
+        typical_hour_end=23,  # Changed from 19→23
     ),
     recipients=RecipientProfile(
         known_recipient_ratio=0.80,
@@ -409,7 +417,7 @@ SCENARIO_BEHAVIORAL_EVASION = ScenarioDefinition(
     loss_type=LossType.UNAUTHORIZED_ACTION,
     has_sufficient_history=True,
     amount=AmountDistribution(
-        mean=324000,    # Exactly same as normal
+        mean=324000,  # Exactly same as normal
         std=150000,
         min_amount=10000,
         max_amount=890000,
@@ -418,18 +426,18 @@ SCENARIO_BEHAVIORAL_EVASION = ScenarioDefinition(
     velocity=VelocityProfile(
         actions_per_hour_mean=2.25,  # Same as normal baseline
         actions_per_hour_std=0.75,
-        burst_factor=9.0,            # Jumps to ~20/hr during drift
+        burst_factor=9.0,  # Jumps to ~20/hr during drift
     ),
     temporal=TemporalProfile(
         typical_hour_start=9,
         typical_hour_end=19,
-        operates_outside_hours=False, # Will be set to True dynamically during drift in generator
+        operates_outside_hours=False,  # Will be set to True dynamically during drift in generator
     ),
     recipients=RecipientProfile(
-        known_recipient_ratio=0.85,    # Exactly same as normal
+        known_recipient_ratio=0.85,  # Exactly same as normal
         unique_recipients_per_day=15,  # Exactly same as normal
     ),
-    action_mix={"refund": 0.60, "retry": 0.20, "checkout": 0.15, "payout": 0.05}, # Exactly same as normal
+    action_mix={"refund": 0.60, "retry": 0.20, "checkout": 0.15, "payout": 0.05},  # Exactly same as normal
     is_legitimate=False,
     drift_onset_day=15,
     key_signal="velocity_z spike, hour_distance spike, while transaction amounts are normal",
@@ -466,23 +474,39 @@ DEFAULT_SCENARIO_MIX: dict[str, float] = {
 # Multi-distribution experiments (recommendation #11)
 EXPERIMENT_MIXES: dict[str, dict[str, float]] = {
     "A_baseline": {
-        "normal": 0.85, "abuse_burst": 0.025, "misconfigured": 0.025,
-        "slow_abuse": 0.025, "seasonal_spike": 0.025, "new_agent": 0.025,
+        "normal": 0.85,
+        "abuse_burst": 0.025,
+        "misconfigured": 0.025,
+        "slow_abuse": 0.025,
+        "seasonal_spike": 0.025,
+        "new_agent": 0.025,
         "benign_drift": 0.025,
     },
     "B_high_normal": {
-        "normal": 0.91, "abuse_burst": 0.015, "misconfigured": 0.015,
-        "slow_abuse": 0.015, "seasonal_spike": 0.015, "new_agent": 0.015,
+        "normal": 0.91,
+        "abuse_burst": 0.015,
+        "misconfigured": 0.015,
+        "slow_abuse": 0.015,
+        "seasonal_spike": 0.015,
+        "new_agent": 0.015,
         "benign_drift": 0.015,
     },
     "C_very_high_normal": {
-        "normal": 0.95, "abuse_burst": 0.01, "misconfigured": 0.008,
-        "slow_abuse": 0.008, "seasonal_spike": 0.008, "new_agent": 0.008,
+        "normal": 0.95,
+        "abuse_burst": 0.01,
+        "misconfigured": 0.008,
+        "slow_abuse": 0.008,
+        "seasonal_spike": 0.008,
+        "new_agent": 0.008,
         "benign_drift": 0.008,
     },
     "D_higher_anomaly": {
-        "normal": 0.79, "abuse_burst": 0.035, "misconfigured": 0.035,
-        "slow_abuse": 0.035, "seasonal_spike": 0.035, "new_agent": 0.035,
+        "normal": 0.79,
+        "abuse_burst": 0.035,
+        "misconfigured": 0.035,
+        "slow_abuse": 0.035,
+        "seasonal_spike": 0.035,
+        "new_agent": 0.035,
         "benign_drift": 0.025,
     },
 }
@@ -491,9 +515,7 @@ EXPERIMENT_MIXES: dict[str, dict[str, float]] = {
 def get_scenario(name: str) -> ScenarioDefinition:
     """Retrieve a scenario definition by name."""
     if name not in ALL_SCENARIOS:
-        raise ValueError(
-            f"Unknown scenario '{name}'. Available: {list(ALL_SCENARIOS.keys())}"
-        )
+        raise ValueError(f"Unknown scenario '{name}'. Available: {list(ALL_SCENARIOS.keys())}")
     return ALL_SCENARIOS[name]
 
 
@@ -504,9 +526,7 @@ def validate_scenario_mix(mix: dict[str, float], tolerance: float = 0.01) -> Non
             raise ValueError(f"Unknown scenario '{name}' in mix")
     total = sum(mix.values())
     if abs(total - 1.0) > tolerance:
-        raise ValueError(
-            f"Scenario mix proportions sum to {total}, expected ~1.0"
-        )
+        raise ValueError(f"Scenario mix proportions sum to {total}, expected ~1.0")
     for name, proportion in mix.items():
         if proportion < 0:
             raise ValueError(f"Negative proportion for scenario '{name}'")

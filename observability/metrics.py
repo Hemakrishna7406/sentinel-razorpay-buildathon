@@ -194,6 +194,7 @@ SECURITY_RECONCILIATION_PENDING = Gauge(
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def record_decision(decision: str, reason: str) -> None:
     """
     Increment DECISIONS_TOTAL safely. Never raises.
@@ -243,9 +244,11 @@ def _canonicalize_reason(reason: str) -> str:
 def _init_capacity() -> None:
     try:
         from core.config import settings
+
         cap = settings.MAX_CONCURRENT_TASKS
         WORKER_CAPACITY.set(cap)
     except Exception:
         pass
+
 
 _init_capacity()

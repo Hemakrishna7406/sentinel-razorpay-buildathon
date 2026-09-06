@@ -39,10 +39,7 @@ class TestRateLimiting:
 
         Expected: First 100 requests succeed, 101st request returns 429 Too Many Requests.
         """
-        async with AsyncClient(
-            transport=ASGITransport(app=api.main.app),
-            base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=api.main.app), base_url="http://test") as client:
             # Make 101 requests rapidly
             responses = []
             for i in range(101):
@@ -54,9 +51,9 @@ class TestRateLimiting:
                         "action_type": "payout",
                         "amount": 1000,
                         "currency": "INR",
-                        "recipient": "test"
+                        "recipient": "test",
                     },
-                    headers={"Idempotency-Key": f"rate-key-{i}"}
+                    headers={"Idempotency-Key": f"rate-key-{i}"},
                 )
                 responses.append(resp)
 
@@ -76,10 +73,7 @@ class TestRateLimiting:
 
         Expected: Different agents should have independent rate limits.
         """
-        async with AsyncClient(
-            transport=ASGITransport(app=api.main.app),
-            base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=api.main.app), base_url="http://test") as client:
             # Agent A makes 100 requests
             agent_a_responses = []
             for i in range(100):
@@ -91,9 +85,9 @@ class TestRateLimiting:
                         "action_type": "payout",
                         "amount": 1000,
                         "currency": "INR",
-                        "recipient": "test"
+                        "recipient": "test",
                     },
-                    headers={"Idempotency-Key": f"agent-a-key-{i}"}
+                    headers={"Idempotency-Key": f"agent-a-key-{i}"},
                 )
                 agent_a_responses.append(resp)
 
@@ -106,9 +100,9 @@ class TestRateLimiting:
                     "action_type": "payout",
                     "amount": 1000,
                     "currency": "INR",
-                    "recipient": "test"
+                    "recipient": "test",
                 },
-                headers={"Idempotency-Key": "agent-b-key-1"}
+                headers={"Idempotency-Key": "agent-b-key-1"},
             )
 
             assert resp_b.status_code in [200, 202], "Different agent should have independent rate limit"
@@ -121,10 +115,7 @@ class TestRateLimiting:
 
         Expected: 429 response includes Retry-After header with seconds to wait.
         """
-        async with AsyncClient(
-            transport=ASGITransport(app=api.main.app),
-            base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=api.main.app), base_url="http://test") as client:
             # Exceed rate limit
             for i in range(101):
                 await client.post(
@@ -135,9 +126,9 @@ class TestRateLimiting:
                         "action_type": "payout",
                         "amount": 1000,
                         "currency": "INR",
-                        "recipient": "test"
+                        "recipient": "test",
                     },
-                    headers={"Idempotency-Key": f"retry-key-{i}"}
+                    headers={"Idempotency-Key": f"retry-key-{i}"},
                 )
 
             # Next request should include Retry-After
@@ -149,9 +140,9 @@ class TestRateLimiting:
                     "action_type": "payout",
                     "amount": 1000,
                     "currency": "INR",
-                    "recipient": "test"
+                    "recipient": "test",
                 },
-                headers={"Idempotency-Key": "retry-key-final"}
+                headers={"Idempotency-Key": "retry-key-final"},
             )
 
             assert resp.status_code == 429
@@ -206,11 +197,7 @@ class TestSecurityHeaders:
 
         assert "Referrer-Policy" in resp.headers
         # Should use strict policy
-        assert resp.headers["Referrer-Policy"] in [
-            "strict-origin-when-cross-origin",
-            "strict-origin",
-            "no-referrer"
-        ]
+        assert resp.headers["Referrer-Policy"] in ["strict-origin-when-cross-origin", "strict-origin", "no-referrer"]
 
     @pytest.mark.skip(reason="Security headers not yet implemented - H-2 finding")
     def test_hsts_header_on_https(self):
@@ -289,7 +276,7 @@ class TestAuditChainTimestamp:
             recipient="test",
             decision="ALLOW",
             decision_reason="test",
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.utcnow(),
         )
         db_session.add(record1)
         db_session.commit()
@@ -338,7 +325,7 @@ class TestAuditChainTimestamp:
             "decision_reason": "test",
             "capability_jti": "jti-123",
             "executed_tx_id": "tx-123",
-            "previous_hash": None
+            "previous_hash": None,
         }
 
         hash1 = audit_record_hash(values)
@@ -402,6 +389,7 @@ class TestSecretEntropyValidation:
 
         # High entropy (random)
         import secrets
+
         high_entropy = secrets.token_hex(64)
         entropy_high = calculate_entropy(high_entropy)
         assert entropy_high > 4.5, "Random hex string should have high entropy"
@@ -420,10 +408,7 @@ class TestProductionConfigValidation:
         from core.config import Settings
 
         # Simulate production settings
-        prod_settings = Settings(
-            ENVIRONMENT="production",
-            CORS_ORIGINS="http://localhost:5173"  # Should fail
-        )
+        prod_settings = Settings(ENVIRONMENT="production", CORS_ORIGINS="http://localhost:5173")  # Should fail
 
         # Should raise error on startup
         with pytest.raises(ValueError, match="localhost.*production"):
@@ -436,8 +421,7 @@ class TestProductionConfigValidation:
         from core.config import Settings
 
         prod_settings = Settings(
-            ENVIRONMENT="production",
-            CAPABILITY_SIGNING_KEY="sentinel-local-dev-secret-do-not-use-in-prod"
+            ENVIRONMENT="production", CAPABILITY_SIGNING_KEY="sentinel-local-dev-secret-do-not-use-in-prod"
         )
 
         # Should fail (already implemented)
@@ -446,6 +430,7 @@ class TestProductionConfigValidation:
 
 
 # Helper functions (to be implemented)
+
 
 def validate_secret_strength(key_str: str) -> bool:
     """
@@ -478,10 +463,7 @@ def calculate_entropy(s: str) -> float:
     freq = Counter(s)
     length = len(s)
 
-    entropy = -sum(
-        (count / length) * math.log2(count / length)
-        for count in freq.values()
-    )
+    entropy = -sum((count / length) * math.log2(count / length) for count in freq.values())
 
     return entropy
 
@@ -495,14 +477,9 @@ def validate_production_config(settings):
     if settings.ENVIRONMENT == "production":
         # Check CORS origins
         origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
-        localhost_origins = [
-            o for o in origins
-            if "localhost" in o or "127.0.0.1" in o or "0.0.0.0" in o
-        ]
+        localhost_origins = [o for o in origins if "localhost" in o or "127.0.0.1" in o or "0.0.0.0" in o]
         if localhost_origins:
-            raise ValueError(
-                f"Production deployment cannot allow localhost CORS origins: {localhost_origins}"
-            )
+            raise ValueError(f"Production deployment cannot allow localhost CORS origins: {localhost_origins}")
 
         # Check Redis URL
         if not settings.REDIS_URL.startswith("rediss://"):
@@ -513,15 +490,17 @@ def validate_production_config(settings):
             # Warning: Kafka security cannot be fully validated from URL alone
             # This is a soft check
             import warnings
+
             warnings.warn(
                 "Kafka broker URL does not appear to use SASL authentication. "
                 "Ensure KAFKA_SECURITY_PROTOCOL is configured.",
-                category=SecurityWarning
+                category=SecurityWarning,
             )
 
 
 class SecurityWarning(UserWarning):
     """Warning category for security configuration issues."""
+
     pass
 
 

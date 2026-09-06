@@ -30,7 +30,7 @@ class HyperparameterTuner:
         scale_pos_weight: float,
         min_precision: float = 0.95,
         min_recall: float = 0.85,
-        seed: int = 42
+        seed: int = 42,
     ):
         """
         Initialize the tuner.
@@ -57,10 +57,7 @@ class HyperparameterTuner:
         self.trial_history: List[Dict[str, Any]] = []
 
     def _train_and_evaluate(
-        self,
-        params: Dict[str, Any],
-        num_boost_round: int = 200,
-        early_stopping_rounds: int = 20
+        self, params: Dict[str, Any], num_boost_round: int = 200, early_stopping_rounds: int = 20
     ) -> Tuple[xgb.Booster, float, float, float]:
         """
         Train model with given params and evaluate.
@@ -74,7 +71,7 @@ class HyperparameterTuner:
             "scale_pos_weight": self.scale_pos_weight,
             "tree_method": "hist",
             "seed": self.seed,
-            **params
+            **params,
         }
 
         evals = [(self.dval, "val")]
@@ -84,7 +81,7 @@ class HyperparameterTuner:
             num_boost_round=num_boost_round,
             evals=evals,
             early_stopping_rounds=early_stopping_rounds,
-            verbose_eval=False
+            verbose_eval=False,
         )
 
         # Evaluate on validation
@@ -112,10 +109,7 @@ class HyperparameterTuner:
 
         return model, float(precision), float(recall), float(aucpr)
 
-    def grid_search(
-        self,
-        param_grid: Optional[Dict[str, List[Any]]] = None
-    ) -> Tuple[xgb.Booster, Dict[str, Any]]:
+    def grid_search(self, param_grid: Optional[Dict[str, List[Any]]] = None) -> Tuple[xgb.Booster, Dict[str, Any]]:
         """
         Perform grid search over hyperparameter space.
 
@@ -133,7 +127,7 @@ class HyperparameterTuner:
                 "min_child_weight": [1, 3, 5],
                 "subsample": [0.8, 0.9, 1.0],
                 "colsample_bytree": [0.8, 0.9, 1.0],
-                "gamma": [0, 0.1, 0.2]
+                "gamma": [0, 0.1, 0.2],
             }
 
         logger.info(f"Starting grid search with {self._count_combinations(param_grid)} combinations")
@@ -156,7 +150,7 @@ class HyperparameterTuner:
                 "precision": precision,
                 "recall": recall,
                 "aucpr": aucpr,
-                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall
+                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall,
             }
             self.trial_history.append(trial)
 
@@ -168,8 +162,7 @@ class HyperparameterTuner:
                     best_params = params.copy()
                     best_model = model
                     logger.info(
-                        f"New best model: AUCPR={aucpr:.4f}, "
-                        f"Precision={precision:.4f}, Recall={recall:.4f}"
+                        f"New best model: AUCPR={aucpr:.4f}, " f"Precision={precision:.4f}, Recall={recall:.4f}"
                     )
 
         if best_model is None:
@@ -187,9 +180,7 @@ class HyperparameterTuner:
         return best_model, best_params
 
     def random_search(
-        self,
-        param_distributions: Optional[Dict[str, Tuple[Any, Any]]] = None,
-        n_iter: int = 50
+        self, param_distributions: Optional[Dict[str, Tuple[Any, Any]]] = None, n_iter: int = 50
     ) -> Tuple[xgb.Booster, Dict[str, Any]]:
         """
         Perform random search over hyperparameter space.
@@ -208,7 +199,7 @@ class HyperparameterTuner:
                 "min_child_weight": (1, 10),
                 "subsample": (0.6, 1.0),
                 "colsample_bytree": (0.6, 1.0),
-                "gamma": (0, 0.5)
+                "gamma": (0, 0.5),
             }
 
         logger.info(f"Starting random search with {n_iter} iterations")
@@ -238,7 +229,7 @@ class HyperparameterTuner:
                 "precision": precision,
                 "recall": recall,
                 "aucpr": aucpr,
-                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall
+                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall,
             }
             self.trial_history.append(trial)
 
@@ -249,8 +240,7 @@ class HyperparameterTuner:
                     best_params = params.copy()
                     best_model = model
                     logger.info(
-                        f"New best model: AUCPR={aucpr:.4f}, "
-                        f"Precision={precision:.4f}, Recall={recall:.4f}"
+                        f"New best model: AUCPR={aucpr:.4f}, " f"Precision={precision:.4f}, Recall={recall:.4f}"
                     )
 
         if best_model is None:
@@ -266,10 +256,7 @@ class HyperparameterTuner:
         logger.info(f"Random search complete. Best AUCPR: {best_score:.4f}")
         return best_model, best_params
 
-    def bayesian_optimization(
-        self,
-        n_trials: int = 50
-    ) -> Tuple[xgb.Booster, Dict[str, Any]]:
+    def bayesian_optimization(self, n_trials: int = 50) -> Tuple[xgb.Booster, Dict[str, Any]]:
         """
         Perform Bayesian optimization using Optuna.
 
@@ -296,7 +283,7 @@ class HyperparameterTuner:
                 "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
                 "subsample": trial.suggest_float("subsample", 0.6, 1.0),
                 "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-                "gamma": trial.suggest_float("gamma", 0, 0.5)
+                "gamma": trial.suggest_float("gamma", 0, 0.5),
             }
 
             model, precision, recall, aucpr = self._train_and_evaluate(params)
@@ -307,7 +294,7 @@ class HyperparameterTuner:
                 "precision": precision,
                 "recall": recall,
                 "aucpr": aucpr,
-                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall
+                "meets_constraints": precision >= self.min_precision and recall >= self.min_recall,
             }
             self.trial_history.append(trial_record)
 
@@ -317,10 +304,7 @@ class HyperparameterTuner:
 
             return aucpr
 
-        study = optuna.create_study(
-            direction="maximize",
-            sampler=TPESampler(seed=self.seed)
-        )
+        study = optuna.create_study(direction="maximize", sampler=TPESampler(seed=self.seed))
 
         study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
@@ -378,9 +362,5 @@ class HyperparameterTuner:
             "best_params": self.best_params,
             "avg_precision": np.mean([t["precision"] for t in self.trial_history]),
             "avg_recall": np.mean([t["recall"] for t in self.trial_history]),
-            "top_5_trials": sorted(
-                self.trial_history,
-                key=lambda x: x["aucpr"],
-                reverse=True
-            )[:5]
+            "top_5_trials": sorted(self.trial_history, key=lambda x: x["aucpr"], reverse=True)[:5],
         }

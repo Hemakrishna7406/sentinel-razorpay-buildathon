@@ -49,12 +49,7 @@ class SecurityCheck:
     def report(self) -> str:
         """Generate report line."""
         status = f"{GREEN}✓ PASS{RESET}" if self.passed else f"{RED}✗ FAIL{RESET}"
-        severity_color = {
-            "CRITICAL": RED,
-            "HIGH": RED,
-            "MEDIUM": YELLOW,
-            "LOW": BLUE
-        }.get(self.severity, RESET)
+        severity_color = {"CRITICAL": RED, "HIGH": RED, "MEDIUM": YELLOW, "LOW": BLUE}.get(self.severity, RESET)
 
         return f"{status} [{severity_color}{self.severity}{RESET}] {self.name}\n    {self.message}"
 
@@ -90,10 +85,7 @@ class CapabilitySigningKeyCheck(SecurityCheck):
 
         # Check entropy
         freq = Counter(signing_key)
-        entropy = -sum(
-            (count / len(signing_key)) * math.log2(count / len(signing_key))
-            for count in freq.values()
-        )
+        entropy = -sum((count / len(signing_key)) * math.log2(count / len(signing_key)) for count in freq.values())
 
         if entropy < 4.0:
             self.message = f"Key has low entropy ({entropy:.2f}). Use cryptographically random key."
@@ -155,7 +147,7 @@ class HardcodedSecretsCheck(SecurityCheck):
             (r'password\s*=\s*["\'][^"\']{8,}["\']', "password"),
             (r'secret\s*=\s*["\'][^"\']{16,}["\']', "secret"),
             (r'api[_-]?key\s*=\s*["\'][^"\']{16,}["\']', "api_key"),
-            (r'rzp_(test|live)_[a-zA-Z0-9]{14}', "razorpay_key"),
+            (r"rzp_(test|live)_[a-zA-Z0-9]{14}", "razorpay_key"),
         ]
 
         findings: List[Tuple[str, str, int]] = []
@@ -206,11 +198,7 @@ class SecurityHeadersCheck(SecurityCheck):
         with open(api_main, "r", encoding="utf-8") as f:
             content = f.read()
 
-        required_headers = [
-            "X-Frame-Options",
-            "X-Content-Type-Options",
-            "Content-Security-Policy"
-        ]
+        required_headers = ["X-Frame-Options", "X-Content-Type-Options", "Content-Security-Policy"]
 
         found_headers = [h for h in required_headers if h in content]
 
@@ -256,10 +244,7 @@ class RateLimitingCheck(SecurityCheck):
         with open(api_main, "r", encoding="utf-8") as f:
             content = f.read()
 
-        has_limiter = any(
-            keyword in content
-            for keyword in ["Limiter", "RateLimiter", "@limiter.limit", "rate_limit"]
-        )
+        has_limiter = any(keyword in content for keyword in ["Limiter", "RateLimiter", "@limiter.limit", "rate_limit"])
 
         if not (has_library and has_limiter):
             self.message = "Rate limiting not implemented"
@@ -340,11 +325,7 @@ class DotEnvCheck(SecurityCheck):
 
         try:
             result = subprocess.run(
-                ["git", "ls-files", ".env"],
-                cwd=self.repo_root,
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["git", "ls-files", ".env"], cwd=self.repo_root, capture_output=True, text=True, timeout=5
             )
 
             if result.stdout.strip():
@@ -371,13 +352,13 @@ def main():
         "--environment",
         choices=["development", "production"],
         default=os.getenv("ENVIRONMENT", "development"),
-        help="Environment to validate (default: development)"
+        help="Environment to validate (default: development)",
     )
     parser.add_argument(
         "--fail-on",
         choices=["CRITICAL", "HIGH", "MEDIUM", "LOW"],
         default="HIGH",
-        help="Fail on this severity or higher (default: HIGH)"
+        help="Fail on this severity or higher (default: HIGH)",
     )
     args = parser.parse_args()
 
@@ -387,6 +368,7 @@ def main():
     env_file = repo_root / ".env"
     if env_file.exists():
         from dotenv import load_dotenv
+
         load_dotenv(env_file)
 
     print(f"\n{BOLD}Sentinel Security Validation{RESET}")

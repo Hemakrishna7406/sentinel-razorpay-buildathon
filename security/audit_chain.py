@@ -4,15 +4,26 @@ import hashlib
 import json
 from typing import Any, Iterable
 
-
 CHAIN_FIELDS = (
     # All fields including 'timestamp' are included in the hash computation
     # to prevent tampering. The timestamp value is included in hash verification
     # to ensure audit records cannot be backdated or modified.
-    "intent_id", "timestamp", "agent_id", "action_type", "amount", "currency",
-    "recipient", "model_risk_score", "behavioral_risk_score", "semantic_risk_score",
-    "fusion_disagreement", "decision", "decision_reason", "capability_jti",
-    "executed_tx_id", "previous_hash",
+    "intent_id",
+    "timestamp",
+    "agent_id",
+    "action_type",
+    "amount",
+    "currency",
+    "recipient",
+    "model_risk_score",
+    "behavioral_risk_score",
+    "semantic_risk_score",
+    "fusion_disagreement",
+    "decision",
+    "decision_reason",
+    "capability_jti",
+    "executed_tx_id",
+    "previous_hash",
 )
 
 

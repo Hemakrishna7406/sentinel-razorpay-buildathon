@@ -37,11 +37,12 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Circuit Breaker Definitions
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class SentinelCircuitBreakerListener:
     """Listener for circuit breaker state changes (non-authoritative logging)."""
@@ -56,7 +57,7 @@ class SentinelCircuitBreakerListener:
             circuit=self.name,
             old_state=str(old_state),
             new_state=str(new_state),
-            failure_count=cb.fail_counter
+            failure_count=cb.fail_counter,
         )
 
     def before_call(self, cb, func, *args, **kwargs):
@@ -73,51 +74,40 @@ class SentinelCircuitBreakerListener:
             f"Circuit breaker detected failure: {self.name}",
             circuit=self.name,
             failure_count=cb.fail_counter,
-            error=str(exc)
+            error=str(exc),
         )
 
 
 # Redis Circuit Breaker
 # Opens after 5 consecutive failures, recovers after 30 seconds
 redis_breaker = CircuitBreaker(
-    fail_max=5,
-    timeout_duration=30,
-    name="redis",
-    listeners=[SentinelCircuitBreakerListener("redis")]
+    fail_max=5, timeout_duration=30, name="redis", listeners=[SentinelCircuitBreakerListener("redis")]
 )
 
 # Kafka Circuit Breaker
 # Opens after 10 consecutive failures (higher threshold for transient issues)
 # Recovers after 60 seconds (longer recovery for distributed system)
 kafka_breaker = CircuitBreaker(
-    fail_max=10,
-    timeout_duration=60,
-    name="kafka",
-    listeners=[SentinelCircuitBreakerListener("kafka")]
+    fail_max=10, timeout_duration=60, name="kafka", listeners=[SentinelCircuitBreakerListener("kafka")]
 )
 
 # MLflow Circuit Breaker
 # Opens after 3 failures (non-critical, fail fast)
 mlflow_breaker = CircuitBreaker(
-    fail_max=3,
-    timeout_duration=45,
-    name="mlflow",
-    listeners=[SentinelCircuitBreakerListener("mlflow")]
+    fail_max=3, timeout_duration=45, name="mlflow", listeners=[SentinelCircuitBreakerListener("mlflow")]
 )
 
 # Database Circuit Breaker
 # Opens after 5 failures, recovers after 20 seconds
 database_breaker = CircuitBreaker(
-    fail_max=5,
-    timeout_duration=20,
-    name="database",
-    listeners=[SentinelCircuitBreakerListener("database")]
+    fail_max=5, timeout_duration=20, name="database", listeners=[SentinelCircuitBreakerListener("database")]
 )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Async Wrapper Functions
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def redis_with_breaker(operation: Callable[[], T]) -> T:
     """
@@ -136,16 +126,13 @@ async def redis_with_breaker(operation: Callable[[], T]) -> T:
     try:
         # PyBreaker doesn't natively support async, so we wrap it
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: redis_breaker.call(lambda: asyncio.run(operation()))
-        )
+        result = await loop.run_in_executor(None, lambda: redis_breaker.call(lambda: asyncio.run(operation())))
         return result
     except CircuitBreakerError as e:
         logger.error(
             "Redis circuit breaker is OPEN — failing closed",
             circuit_state=str(redis_breaker.current_state),
-            error=str(e)
+            error=str(e),
         )
         raise
     except Exception as e:
@@ -169,16 +156,13 @@ async def kafka_with_breaker(operation: Callable[[], T]) -> T:
     """
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: kafka_breaker.call(lambda: asyncio.run(operation()))
-        )
+        result = await loop.run_in_executor(None, lambda: kafka_breaker.call(lambda: asyncio.run(operation())))
         return result
     except CircuitBreakerError as e:
         logger.error(
             "Kafka circuit breaker is OPEN — failing closed",
             circuit_state=str(kafka_breaker.current_state),
-            error=str(e)
+            error=str(e),
         )
         raise
     except Exception as e:
@@ -202,16 +186,13 @@ async def database_with_breaker(operation: Callable[[], T]) -> T:
     """
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: database_breaker.call(lambda: asyncio.run(operation()))
-        )
+        result = await loop.run_in_executor(None, lambda: database_breaker.call(lambda: asyncio.run(operation())))
         return result
     except CircuitBreakerError as e:
         logger.error(
             "Database circuit breaker is OPEN — failing closed",
             circuit_state=str(database_breaker.current_state),
-            error=str(e)
+            error=str(e),
         )
         raise
     except Exception as e:
@@ -223,6 +204,7 @@ async def database_with_breaker(operation: Callable[[], T]) -> T:
 # Synchronous Decorator (for backward compatibility)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def with_circuit_breaker(breaker: CircuitBreaker):
     """
     Decorator to wrap synchronous functions with circuit breaker.
@@ -232,6 +214,7 @@ def with_circuit_breaker(breaker: CircuitBreaker):
         def redis_operation():
             return redis_client.get("key")
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -239,18 +222,19 @@ def with_circuit_breaker(breaker: CircuitBreaker):
                 return breaker.call(func, *args, **kwargs)
             except CircuitBreakerError as e:
                 logger.error(
-                    f"Circuit breaker {breaker.name} is OPEN",
-                    circuit=breaker.name,
-                    state=str(breaker.current_state)
+                    f"Circuit breaker {breaker.name} is OPEN", circuit=breaker.name, state=str(breaker.current_state)
                 )
                 raise
+
         return wrapper
+
     return decorator
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Health Check Integration
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def get_circuit_breaker_status() -> dict:
     """
@@ -263,23 +247,23 @@ def get_circuit_breaker_status() -> dict:
         "redis": {
             "state": str(redis_breaker.current_state),
             "failure_count": redis_breaker.fail_counter,
-            "last_failure": redis_breaker.last_failure_exception
+            "last_failure": redis_breaker.last_failure_exception,
         },
         "kafka": {
             "state": str(kafka_breaker.current_state),
             "failure_count": kafka_breaker.fail_counter,
-            "last_failure": kafka_breaker.last_failure_exception
+            "last_failure": kafka_breaker.last_failure_exception,
         },
         "database": {
             "state": str(database_breaker.current_state),
             "failure_count": database_breaker.fail_counter,
-            "last_failure": database_breaker.last_failure_exception
+            "last_failure": database_breaker.last_failure_exception,
         },
         "mlflow": {
             "state": str(mlflow_breaker.current_state),
             "failure_count": mlflow_breaker.fail_counter,
-            "last_failure": mlflow_breaker.last_failure_exception
-        }
+            "last_failure": mlflow_breaker.last_failure_exception,
+        },
     }
 
 
@@ -291,7 +275,4 @@ def is_system_healthy() -> bool:
         True if all critical systems (Redis, Kafka, Database) are operational
     """
     critical_breakers = [redis_breaker, kafka_breaker, database_breaker]
-    return all(
-        str(breaker.current_state) != "open"
-        for breaker in critical_breakers
-    )
+    return all(str(breaker.current_state) != "open" for breaker in critical_breakers)

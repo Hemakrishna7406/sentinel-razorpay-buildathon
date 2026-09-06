@@ -31,10 +31,10 @@ from security.exceptions import (
     SentinelSecurityException,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_intent(intent_id="int-001", amount=5000, recipient="rec-001"):
     return IntentContext(
@@ -70,16 +70,19 @@ class AtomicMockRedis:
 
     def _inject_state(self, key, state, intent_hash="abc123", tx_id=None):
         """Directly inject a state to simulate crash recovery scenarios."""
-        self.store[key] = json.dumps({
-            "intent_hash": intent_hash,
-            "state": state,
-            "tx_id": tx_id,
-            "timestamp": time.time(),
-        })
+        self.store[key] = json.dumps(
+            {
+                "intent_hash": intent_hash,
+                "state": state,
+                "tx_id": tx_id,
+                "timestamp": time.time(),
+            }
+        )
 
 
 class FailingRedis:
     """Redis that always fails — for fail-closed tests."""
+
     async def get(self, key):
         raise ConnectionError("Redis unreachable")
 
@@ -93,6 +96,7 @@ class FailingRedis:
 # ---------------------------------------------------------------------------
 # 18.1F-1: Duplicate HTTP requests — only one proceeds
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_duplicate_http_only_one_reservation():
@@ -156,12 +160,13 @@ async def test_duplicate_http_100_concurrent():
 # 18.1F-2: Kafka publish failure — reservation must NOT be deleted
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_kafka_failure_reservation_retained():
     """
     If Kafka publish fails after reservation, the state should be FAILED
     and the Redis key must STILL EXIST (not deleted).
-    
+
     This prevents silent loss of the security record.
     """
     redis = AtomicMockRedis()
@@ -213,13 +218,14 @@ async def test_failed_state_allows_retry():
 # 18.1F-3: API restart — does not blindly republish PUBLISHED state
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_api_restart_does_not_republish_published():
     """
     If the API crashes after PUBLISHED, a second API instance (simulated
     by a fresh check_and_record call on the same key) must NOT return None
     (i.e., it must NOT be treated as a new request to process).
-    
+
     It should raise IdempotencyConflictException so the caller knows
     this is in-flight, not a new request.
     """
@@ -261,6 +267,7 @@ async def test_api_restart_finds_completed_returns_tx_id():
 # 18.1F-4: Payload mutation on same key is blocked as security violation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_payload_mutation_blocked():
     """
@@ -282,6 +289,7 @@ async def test_payload_mutation_blocked():
 # ---------------------------------------------------------------------------
 # 18.1F-5: COMPLETED replay returns cached tx_id
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_completed_replay_returns_cached_tx_id():
@@ -310,6 +318,7 @@ async def test_completed_replay_returns_cached_tx_id():
 # 18.1F-6: Redis unavailable → FAIL CLOSED
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_redis_unavailable_fails_closed():
     """
@@ -326,6 +335,7 @@ async def test_redis_unavailable_fails_closed():
 # ---------------------------------------------------------------------------
 # 18.1F-7: State transition ordering
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_state_transitions_in_order():

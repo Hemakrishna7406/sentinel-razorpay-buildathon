@@ -51,17 +51,14 @@ class SentinelUser(FastHttpUser):
             "context": {
                 "session_id": self.session_id,
                 "timestamp": int(time.time()),
-            }
+            },
         }
 
         with self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            catch_response=True
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            catch_response=True,
         ) as response:
             if response.status_code == 200:
                 data = response.json()
@@ -92,17 +89,14 @@ class SentinelUser(FastHttpUser):
             "amount": random.randint(500000, 2000000),  # ₹5000 to ₹20,000
             "currency": "INR",
             "recipient": f"vendor-{random.randint(1, 100):03d}",
-            "context": {}
+            "context": {},
         }
 
         with self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            catch_response=True
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            catch_response=True,
         ) as response:
             if response.status_code in [200, 403]:
                 if response.status_code == 200:
@@ -130,17 +124,14 @@ class SentinelUser(FastHttpUser):
                 "amount": 50000,
                 "currency": "INR",
                 "recipient": f"burst-{i}@example.com",
-                "context": {}
+                "context": {},
             }
 
             self.client.post(
                 "/evaluate",
                 json=payload,
-                headers={
-                    "Idempotency-Key": idempotency_key,
-                    "X-Sentinel-Mode": "govern"
-                },
-                name="/evaluate (burst)"
+                headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+                name="/evaluate (burst)",
             )
 
             time.sleep(0.05)  # 50ms between burst requests
@@ -160,18 +151,15 @@ class SentinelUser(FastHttpUser):
             "amount": 75000,
             "currency": "INR",
             "recipient": "retry-test@example.com",
-            "context": {}
+            "context": {},
         }
 
         # First request
         response1 = self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            name="/evaluate (idempotent-first)"
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            name="/evaluate (idempotent-first)",
         )
 
         # Retry same request
@@ -179,11 +167,8 @@ class SentinelUser(FastHttpUser):
         response2 = self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            name="/evaluate (idempotent-retry)"
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            name="/evaluate (idempotent-retry)",
         )
 
         # Both should succeed (second should return cached result)
@@ -232,17 +217,14 @@ class StressTestUser(FastHttpUser):
             "amount": 10000,
             "currency": "INR",
             "recipient": "stress@example.com",
-            "context": {}
+            "context": {},
         }
 
         self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            name="/evaluate (stress)"
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            name="/evaluate (stress)",
         )
 
 
@@ -252,9 +234,9 @@ def on_test_stop(environment, **kwargs):
     """
     Called when the load test stops - print summary
     """
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SENTINEL LOAD TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     if request_latencies:
         sorted_latencies = sorted(request_latencies)
@@ -276,6 +258,6 @@ def on_test_stop(environment, **kwargs):
             percentage = (count / total_decisions) * 100
             print(f"  {decision}: {count} ({percentage:.1f}%)")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"Total Requests Tracked: {len(request_latencies)}")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")

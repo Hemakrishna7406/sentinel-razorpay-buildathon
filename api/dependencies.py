@@ -53,6 +53,7 @@ elif "sqlite" in DB_URL:
 engine = create_engine(DB_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db():
     db = SessionLocal()
     try:
@@ -67,40 +68,41 @@ class ModelWrapper:
         self.model = None
         self.features = []
         self.suspicious_threshold = 0.5
-        
+
     def load(self, model_name="sentinel_xgboost", manifest_path="ml/model_manifest.json"):
         import mlflow
         import mlflow.xgboost
-        
+
         mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
         try:
             # We fetch the latest version of the registered model
             model_uri = f"models:/{model_name}/latest"
             logger.info(f"Loading model from MLflow: {model_uri}")
-            
+
             # mlflow.xgboost.load_model returns the underlying xgboost.Booster
             self.model = mlflow.xgboost.load_model(model_uri)
-            
+
             with open(manifest_path, "r") as f:
                 manifest = json.load(f)
                 self.suspicious_threshold = manifest["thresholds"]["suspicious"]
-                
+
             from ml.features import get_feature_names
+
             self.features = get_feature_names("full_sentinel")
-            
+
         except Exception as e:
             logger.warning(f"Failed to load model from MLflow/manifest: {e}")
-            
+
         use_gpu = settings.USE_GPU
         xgb_nthread = settings.XGB_NTHREAD
-        
+
         if use_gpu and self.model is not None:
             try:
                 self.model.set_param({"device": "cuda"})
                 logger.info("Configuring XGBoost model for GPU execution (device='cuda').")
             except Exception as e:
                 logger.warning(f"Failed to configure GPU execution: {e}")
-                
+
         if xgb_nthread != "auto" and self.model is not None:
             try:
                 self.model.set_param({"nthread": int(xgb_nthread)})
@@ -120,6 +122,7 @@ policy_engine = None
 execution_adapter = None
 idempotency_engine = None
 rate_limiter = None
+
 
 async def init_app_state():
     global redis_client, kafka_producer, global_model, policy_engine, execution_adapter, idempotency_engine
@@ -146,7 +149,7 @@ async def init_app_state():
         logger.error(f"Redis initialization failed: {e}")
         if settings.ENVIRONMENT == "production":
             raise RuntimeError(f"Critical: Redis unavailable in production: {e}")
-    
+
     # Init Kafka Producer with circuit breaker protection (Phase 23)
     kafka_broker = settings.KAFKA_BROKER
     try:
@@ -157,11 +160,11 @@ async def init_app_state():
         logger.error(f"Kafka initialization failed: {e}")
         if settings.ENVIRONMENT == "production":
             raise RuntimeError(f"Critical: Kafka unavailable in production: {e}")
-    
+
     # Init Model
     global_model = ModelWrapper()
     global_model.load()
-    
+
     # Init Engines
     policy_engine = PolicyEngine(suspicious_threshold=global_model.suspicious_threshold)
     from execution.gateway import ExecutionGateway
@@ -192,16 +195,16 @@ async def init_app_state():
         provider = MockPaymentAdapter()
 
     execution_adapter = ExecutionGateway(policy_engine.token_manager, provider, replay_store=redis_client)
-    
+
     idempotency_engine = IdempotencyEngine(
-        redis_client=redis_client,
-        idempotency_ttl_seconds=IDEMPOTENCY_TTL,
-        behavioral_window_seconds=BEHAVIORAL_WINDOW
+        redis_client=redis_client, idempotency_ttl_seconds=IDEMPOTENCY_TTL, behavioral_window_seconds=BEHAVIORAL_WINDOW
     )
 
     from security.rate_limiter import RedisRateLimiter
+
     global rate_limiter
     rate_limiter = RedisRateLimiter(redis_client=redis_client, max_requests=100, window_seconds=60)
+
 
 async def shutdown_app_state():
     global redis_client, kafka_producer, engine
@@ -212,21 +215,26 @@ async def shutdown_app_state():
     if engine:
         engine.dispose()
 
+
 def get_model():
     return global_model
 
+
 def get_policy_engine():
     return policy_engine
+
 
 def get_execution_adapter():
     if not execution_adapter:
         raise SentinelSecurityException("Execution gateway unavailable. Failing closed.")
     return execution_adapter
 
+
 def get_idempotency_engine():
     if not idempotency_engine:
         raise SentinelSecurityException("Idempotency engine unavailable. Failing closed.")
     return idempotency_engine
+
 
 def get_rate_limiter():
     if not rate_limiter:
@@ -252,10 +260,7 @@ async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> st
         return "dev-bypass"
 
     if not settings.API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="API authentication not configured. Failing closed."
-        )
+        raise HTTPException(status_code=500, detail="API authentication not configured. Failing closed.")
 
     if x_api_key != settings.API_KEY:
         logger.warning(f"Invalid API key attempted: {x_api_key[:8]}...")
@@ -276,10 +281,7 @@ async def require_admin_key(x_admin_key: str = Header(..., alias="X-Admin-Key"))
         return "dev-bypass"
 
     if not settings.ADMIN_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="Admin authentication not configured. Failing closed."
-        )
+        raise HTTPException(status_code=500, detail="Admin authentication not configured. Failing closed.")
 
     if x_admin_key != settings.ADMIN_API_KEY:
         logger.warning(f"Invalid admin key attempted: {x_admin_key[:8]}...")
@@ -299,10 +301,7 @@ async def optional_api_key(x_api_key: OptionalType[str] = Header(None, alias="X-
     if not settings.ENABLE_DEMO_ENDPOINTS:
         # Demo endpoints disabled - require API key
         if not x_api_key or x_api_key != settings.API_KEY:
-            raise HTTPException(
-                status_code=403,
-                detail="Demo endpoints disabled. Valid API key required."
-            )
+            raise HTTPException(status_code=403, detail="Demo endpoints disabled. Valid API key required.")
 
     # If we reach here, either ENABLE_DEMO_ENDPOINTS=True or valid key provided
     return x_api_key

@@ -20,10 +20,10 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from prometheus_client import REGISTRY
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _get_counter(name: str, labels: dict | None = None) -> float:
     """
@@ -58,6 +58,7 @@ def _reset_not_possible():
 # ─────────────────────────────────────────────────────────────────────────────
 # Test 1: OBSERVABILITY ISOLATION INVARIANT
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestObservabilityIsolationInvariant:
     """
@@ -94,6 +95,7 @@ class TestObservabilityIsolationInvariant:
         The caller must not receive the exception.
         """
         from observability.logging import get_logger
+
         logger = get_logger("test.observability_isolation")
 
         with patch("observability.logging._JsonFormatter.format", side_effect=Exception("Formatter broken")):
@@ -128,7 +130,7 @@ class TestObservabilityIsolationInvariant:
         original_payload = {
             "intent": {"intent_id": "INT-001", "amount": 1000},
             "agent_id": "checkout-agent-01",
-            "mode": "govern"
+            "mode": "govern",
         }
 
         with patch("observability.tracing._init_tracing", side_effect=Exception("OTel down")):
@@ -153,22 +155,19 @@ class TestObservabilityIsolationInvariant:
             action_type="payout",
             amount=100,
             currency="INR",
-            recipient="recipient-safe"
+            recipient="recipient-safe",
         )
         behavioral = BehavioralRiskResult(
             risk_score=0.1,
             risk_status="MODEL_AVAILABLE",
             confidence=0.9,
             reason_codes=["NORMAL"],
-            model_version="xgb-v3"
+            model_version="xgb-v3",
         )
         fusion = FusionResult(final_risk=0.1, disagreement=False, decision="ALLOW", reason="NORMAL")
         assessment = RiskAssessment(behavioral=behavioral, fusion=fusion)
 
-        with (
-            patch("observability.metrics.DECISIONS_TOTAL.labels",
-                  side_effect=Exception("Prometheus down")),
-        ):
+        with (patch("observability.metrics.DECISIONS_TOTAL.labels", side_effect=Exception("Prometheus down")),):
             # PolicyEngine.evaluate must complete regardless of observability state
             decision, reason, token = policy.evaluate(intent, {}, assessment)
 
@@ -180,6 +179,7 @@ class TestObservabilityIsolationInvariant:
 # ─────────────────────────────────────────────────────────────────────────────
 # Test 2: Redis Failure → Correct Counter + Security Invariants Intact
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestRedisFailureMetrics:
     """
@@ -214,7 +214,7 @@ class TestRedisFailureMetrics:
         from observability.metrics import (
             SECURITY_UNAUTHORIZED_EXECUTION,
             SECURITY_DUPLICATE_EXECUTION,
-            SECURITY_UNSAFE_ALLOW
+            SECURITY_UNSAFE_ALLOW,
         )
 
         unauth_before = _get_counter("sentinel_security_unauthorized_execution_total")
@@ -226,6 +226,7 @@ class TestRedisFailureMetrics:
             raise ConnectionError("Redis unavailable")
         except Exception:
             from observability.metrics import REDIS_ERRORS_TOTAL
+
             REDIS_ERRORS_TOTAL.labels(operation="idempotency_check").inc()
             # A Redis failure must produce ESCALATE, never execute
             # → security counters must NOT be touched
@@ -238,6 +239,7 @@ class TestRedisFailureMetrics:
 # ─────────────────────────────────────────────────────────────────────────────
 # Test 3: Postgres Failure → Correct Counter + Audit Retries
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestPostgresFailureMetrics:
     def test_postgres_error_counter_increments_on_failure(self):
@@ -256,6 +258,7 @@ class TestPostgresFailureMetrics:
     def test_postgres_failure_does_not_affect_security_invariants(self):
         """Postgres audit write failure must not cause unauthorized execution."""
         from observability.metrics import SECURITY_UNAUTHORIZED_EXECUTION
+
         before = _get_counter("sentinel_security_unauthorized_execution_total")
 
         # Simulate audit write failure — authorization was already decided
@@ -264,6 +267,7 @@ class TestPostgresFailureMetrics:
             raise Exception("Postgres unavailable")
         except Exception:
             from observability.metrics import POSTGRES_ERRORS_TOTAL
+
             POSTGRES_ERRORS_TOTAL.labels(operation="audit_insert").inc()
 
         assert _get_counter("sentinel_security_unauthorized_execution_total") == before
@@ -272,6 +276,7 @@ class TestPostgresFailureMetrics:
 # ─────────────────────────────────────────────────────────────────────────────
 # Test 4: ML Model Unavailable → ESCALATE, Never ALLOW
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestMLUnavailableMetrics:
     def test_ml_unavailable_produces_escalate_not_allow(self):
@@ -291,7 +296,7 @@ class TestMLUnavailableMetrics:
             action_type="payout",
             amount=999999,  # Very large — should escalate even without ML
             currency="INR",
-            recipient="unknown-recipient"
+            recipient="unknown-recipient",
         )
 
         # MODEL_UNAVAILABLE → risk_score=None, risk_status=MODEL_UNAVAILABLE
@@ -300,13 +305,10 @@ class TestMLUnavailableMetrics:
             risk_status="MODEL_UNAVAILABLE",
             confidence=0.0,
             reason_codes=["MODEL_UNAVAILABLE"],
-            model_version="xgb-v3"
+            model_version="xgb-v3",
         )
         fusion = FusionResult(
-            final_risk=1.0,
-            disagreement=False,
-            decision="ESCALATE",
-            reason="MODEL_UNAVAILABLE"
+            final_risk=1.0, disagreement=False, decision="ESCALATE", reason="MODEL_UNAVAILABLE"
         )  # Fail high
         assessment = RiskAssessment(behavioral=behavioral, fusion=fusion)
 
@@ -320,6 +322,7 @@ class TestMLUnavailableMetrics:
 
     def test_ml_error_counter_increments(self):
         from observability.metrics import ML_ERRORS_TOTAL
+
         baseline = _get_counter("sentinel_ml_errors_total")
 
         try:
@@ -335,6 +338,7 @@ class TestMLUnavailableMetrics:
 # Test 5: Decision Reason Label Canonicalization
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestDecisionReasonLabels:
     """
     Verify that free-form reason strings are correctly canonicalized to the
@@ -343,25 +347,30 @@ class TestDecisionReasonLabels:
 
     def test_reason_canonicalization_model_unavailable(self):
         from observability.metrics import _canonicalize_reason
+
         assert _canonicalize_reason("Model unavailable - failing closed") == "MODEL_UNAVAILABLE"
         assert _canonicalize_reason("MODEL_UNAVAILABLE") == "MODEL_UNAVAILABLE"
         assert _canonicalize_reason("Model not loaded") == "MODEL_UNAVAILABLE"
 
     def test_reason_canonicalization_redis_unavailable(self):
         from observability.metrics import _canonicalize_reason
+
         assert _canonicalize_reason("REDIS_UNAVAILABLE") == "REDIS_UNAVAILABLE"
 
     def test_reason_canonicalization_risk_too_high(self):
         from observability.metrics import _canonicalize_reason
+
         assert _canonicalize_reason("Risk score 0.91 exceeds threshold") == "RISK_TOO_HIGH"
 
     def test_reason_canonicalization_idempotency(self):
         from observability.metrics import _canonicalize_reason
+
         assert _canonicalize_reason("Idempotency conflict detected") == "IDEMPOTENCY_CONFLICT"
 
     def test_record_decision_does_not_raise_on_bad_reason(self):
         """record_decision must be bulletproof even with malformed reason strings."""
         from observability.metrics import record_decision
+
         try:
             record_decision("ALLOW", None)
             record_decision("ESCALATE", "")
@@ -373,6 +382,7 @@ class TestDecisionReasonLabels:
 # ─────────────────────────────────────────────────────────────────────────────
 # Test 6: Security Invariant Counters Are Monotonically Non-Decreasing
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestSecurityInvariantCounters:
     """

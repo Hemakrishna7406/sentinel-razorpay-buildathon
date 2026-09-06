@@ -11,6 +11,7 @@ from ml.evaluate import compute_metrics, find_optimal_threshold, generate_calibr
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 
+
 def calibrate_model_platt(y_true, y_scores):
     """Apply Platt scaling to raw model scores."""
     scores_2d = np.array(y_scores).reshape(-1, 1)
@@ -18,8 +19,10 @@ def calibrate_model_platt(y_true, y_scores):
     calibrator.fit(scores_2d, y_true)
     return calibrator
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def train_simple(ablation_mode="full_sentinel", seed=42):
     """Train model without MLflow."""
@@ -52,6 +55,7 @@ def train_simple(ablation_mode="full_sentinel", seed=42):
 
     # Check for inversion
     from sklearn.metrics import roc_auc_score
+
     val_preds = model.predict(dval)
     y_val = dval.get_label()
     invert_scores = False
@@ -78,7 +82,7 @@ def train_simple(ablation_mode="full_sentinel", seed=42):
     threshold = find_optimal_threshold(y_true, y_pred_prob)
     metrics = compute_metrics(y_true, y_pred_prob, threshold)
 
-    logger.info("="*70)
+    logger.info("=" * 70)
     logger.info(f"RESULTS FOR {ablation_mode}")
     logger.info(f"  ROC-AUC: {metrics['roc_auc']:.4f}")
     logger.info(f"  PR-AUC: {metrics['aucpr']:.4f}")
@@ -88,7 +92,7 @@ def train_simple(ablation_mode="full_sentinel", seed=42):
     logger.info(f"  Unsafe Auto-Approval: {metrics['unsafe_auto_approval_rate']:.3f}")
     logger.info(f"  Threshold: {threshold:.4f}")
     logger.info(f"  Inverted: {invert_scores}")
-    logger.info("="*70)
+    logger.info("=" * 70)
 
     # Save full_sentinel model
     if ablation_mode == "full_sentinel":
@@ -112,12 +116,14 @@ def train_simple(ablation_mode="full_sentinel", seed=42):
         manifest["invert_scores"] = invert_scores
 
         import json
+
         with open("ml/model_manifest.json", "w") as f:
             json.dump(manifest, f, indent=2)
 
         logger.info("Saved: ml/sentinel_model.json, ml/calibrator.pkl, ml/model_manifest.json")
 
     return model, best_params, metrics, invert_scores
+
 
 if __name__ == "__main__":
     train_simple("full_sentinel", seed=42)

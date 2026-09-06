@@ -31,9 +31,7 @@ class AnalyticsPipeline:
     def __init__(self, database_url: Optional[str] = None):
         self.database_url = database_url or settings.DATABASE_URL
         self.engine = create_engine(
-            self.database_url,
-            poolclass=NullPool,  # Analytics jobs don't need connection pooling
-            echo=False
+            self.database_url, poolclass=NullPool, echo=False  # Analytics jobs don't need connection pooling
         )
         self.SessionLocal = sessionmaker(bind=self.engine)
 
@@ -56,21 +54,22 @@ class AnalyticsPipeline:
             end_time = target_hour + datetime.timedelta(hours=1)
 
             # Fetch audit records for this hour
-            records = session.query(AuditRecord).filter(
-                AuditRecord.timestamp >= start_time,
-                AuditRecord.timestamp < end_time
-            ).all()
+            records = (
+                session.query(AuditRecord)
+                .filter(AuditRecord.timestamp >= start_time, AuditRecord.timestamp < end_time)
+                .all()
+            )
 
             if not records:
                 logger.info(f"No records found for {target_hour}")
                 return {"status": "no_data", "period": target_hour}
 
             # Aggregate decisions
-            decisions_metrics = self._aggregate_decisions(records, target_hour, 'hour')
+            decisions_metrics = self._aggregate_decisions(records, target_hour, "hour")
             self._upsert_decisions_aggregated(session, decisions_metrics)
 
             # Aggregate per-agent metrics
-            agent_metrics = self._aggregate_agent_metrics(records, target_hour, 'hour')
+            agent_metrics = self._aggregate_agent_metrics(records, target_hour, "hour")
             for metrics in agent_metrics:
                 self._upsert_agent_metrics(session, metrics)
 
@@ -98,7 +97,7 @@ class AnalyticsPipeline:
                 "agents": len(agent_metrics),
                 "fraud_events": len(fraud_events),
                 "violations": len(violations),
-                "anomalies": len(anomalies)
+                "anomalies": len(anomalies),
             }
 
             logger.info(f"Hourly aggregation complete: {summary}")
@@ -121,10 +120,11 @@ class AnalyticsPipeline:
             end_time = datetime.datetime.combine(target_date, datetime.time.max)
 
             # Fetch audit records for this day
-            records = session.query(AuditRecord).filter(
-                AuditRecord.timestamp >= start_time,
-                AuditRecord.timestamp <= end_time
-            ).all()
+            records = (
+                session.query(AuditRecord)
+                .filter(AuditRecord.timestamp >= start_time, AuditRecord.timestamp <= end_time)
+                .all()
+            )
 
             if not records:
                 logger.info(f"No records found for {target_date}")
@@ -132,17 +132,13 @@ class AnalyticsPipeline:
 
             # Aggregate decisions (daily)
             decisions_metrics = self._aggregate_decisions(
-                records,
-                datetime.datetime.combine(target_date, datetime.time.min),
-                'day'
+                records, datetime.datetime.combine(target_date, datetime.time.min), "day"
             )
             self._upsert_decisions_aggregated(session, decisions_metrics)
 
             # Aggregate per-agent metrics (daily)
             agent_metrics = self._aggregate_agent_metrics(
-                records,
-                datetime.datetime.combine(target_date, datetime.time.min),
-                'day'
+                records, datetime.datetime.combine(target_date, datetime.time.min), "day"
             )
             for metrics in agent_metrics:
                 self._upsert_agent_metrics(session, metrics)
@@ -158,35 +154,30 @@ class AnalyticsPipeline:
                 "date": str(target_date),
                 "records_processed": len(records),
                 "agents": len(agent_metrics),
-                "total_value": financial_metrics.get('total_value_processed', 0)
+                "total_value": financial_metrics.get("total_value_processed", 0),
             }
 
             logger.info(f"Daily aggregation complete: {summary}")
             return summary
 
-    def _aggregate_decisions(
-        self,
-        records: List[AuditRecord],
-        period: datetime.datetime,
-        period_type: str
-    ) -> Dict:
+    def _aggregate_decisions(self, records: List[AuditRecord], period: datetime.datetime, period_type: str) -> Dict:
         """Aggregate decision-level metrics."""
         metrics = {
-            'aggregation_period': period,
-            'period_type': period_type,
-            'total_decisions': len(records),
-            'allow_count': 0,
-            'escalate_count': 0,
-            'contain_count': 0,
-            'total_value': 0,
-            'allow_value': 0,
-            'escalate_value': 0,
-            'contain_value': 0,
-            'prevented_fraud_value': 0,
-            'high_risk_count': 0,
-            'medium_risk_count': 0,
-            'low_risk_count': 0,
-            'fusion_disagreement_count': 0
+            "aggregation_period": period,
+            "period_type": period_type,
+            "total_decisions": len(records),
+            "allow_count": 0,
+            "escalate_count": 0,
+            "contain_count": 0,
+            "total_value": 0,
+            "allow_value": 0,
+            "escalate_value": 0,
+            "contain_value": 0,
+            "prevented_fraud_value": 0,
+            "high_risk_count": 0,
+            "medium_risk_count": 0,
+            "low_risk_count": 0,
+            "fusion_disagreement_count": 0,
         }
 
         risk_scores = []
@@ -198,28 +189,28 @@ class AnalyticsPipeline:
             decision = record.decision.upper()
             amount = record.amount
 
-            if decision == 'ALLOW':
-                metrics['allow_count'] += 1
-                metrics['allow_value'] += amount
-            elif decision == 'ESCALATE':
-                metrics['escalate_count'] += 1
-                metrics['escalate_value'] += amount
-            elif decision == 'CONTAIN':
-                metrics['contain_count'] += 1
-                metrics['contain_value'] += amount
-                metrics['prevented_fraud_value'] += amount  # Assume CONTAIN = prevented fraud
+            if decision == "ALLOW":
+                metrics["allow_count"] += 1
+                metrics["allow_value"] += amount
+            elif decision == "ESCALATE":
+                metrics["escalate_count"] += 1
+                metrics["escalate_value"] += amount
+            elif decision == "CONTAIN":
+                metrics["contain_count"] += 1
+                metrics["contain_value"] += amount
+                metrics["prevented_fraud_value"] += amount  # Assume CONTAIN = prevented fraud
 
-            metrics['total_value'] += amount
+            metrics["total_value"] += amount
 
             # Risk categorization
             if record.model_risk_score is not None:
                 risk_scores.append(record.model_risk_score)
                 if record.model_risk_score >= 0.7:
-                    metrics['high_risk_count'] += 1
+                    metrics["high_risk_count"] += 1
                 elif record.model_risk_score >= 0.4:
-                    metrics['medium_risk_count'] += 1
+                    metrics["medium_risk_count"] += 1
                 else:
-                    metrics['low_risk_count'] += 1
+                    metrics["low_risk_count"] += 1
 
             if record.behavioral_risk_score is not None:
                 behavioral_risks.append(record.behavioral_risk_score)
@@ -228,111 +219,112 @@ class AnalyticsPipeline:
                 semantic_risks.append(record.semantic_risk_score)
 
             # Fusion disagreement
-            if record.fusion_disagreement == 'true':
-                metrics['fusion_disagreement_count'] += 1
+            if record.fusion_disagreement == "true":
+                metrics["fusion_disagreement_count"] += 1
 
         # Statistical metrics
         if risk_scores:
-            metrics['avg_risk_score'] = statistics.mean(risk_scores)
-            metrics['max_risk_score'] = max(risk_scores)
-            metrics['min_risk_score'] = min(risk_scores)
+            metrics["avg_risk_score"] = statistics.mean(risk_scores)
+            metrics["max_risk_score"] = max(risk_scores)
+            metrics["min_risk_score"] = min(risk_scores)
 
         if behavioral_risks:
-            metrics['avg_behavioral_risk'] = statistics.mean(behavioral_risks)
+            metrics["avg_behavioral_risk"] = statistics.mean(behavioral_risks)
 
         if semantic_risks:
-            metrics['avg_semantic_risk'] = statistics.mean(semantic_risks)
+            metrics["avg_semantic_risk"] = statistics.mean(semantic_risks)
 
         return metrics
 
     def _aggregate_agent_metrics(
-        self,
-        records: List[AuditRecord],
-        period: datetime.datetime,
-        period_type: str
+        self, records: List[AuditRecord], period: datetime.datetime, period_type: str
     ) -> List[Dict]:
         """Aggregate per-agent metrics."""
-        agent_data = defaultdict(lambda: {
-            'agent_id': None,
-            'aggregation_period': period,
-            'period_type': period_type,
-            'total_transactions': 0,
-            'total_value': 0,
-            'allow_count': 0,
-            'escalate_count': 0,
-            'contain_count': 0,
-            'risk_scores': [],
-            'recipients': set(),
-            'action_types': set(),
-            'transaction_times': [],
-            'policy_violations': 0
-        })
+        agent_data = defaultdict(
+            lambda: {
+                "agent_id": None,
+                "aggregation_period": period,
+                "period_type": period_type,
+                "total_transactions": 0,
+                "total_value": 0,
+                "allow_count": 0,
+                "escalate_count": 0,
+                "contain_count": 0,
+                "risk_scores": [],
+                "recipients": set(),
+                "action_types": set(),
+                "transaction_times": [],
+                "policy_violations": 0,
+            }
+        )
 
         for record in records:
             agent_id = record.agent_id
             data = agent_data[agent_id]
-            data['agent_id'] = agent_id
+            data["agent_id"] = agent_id
 
             # Basic counts
-            data['total_transactions'] += 1
-            data['total_value'] += record.amount
+            data["total_transactions"] += 1
+            data["total_value"] += record.amount
 
             # Decision breakdown
             decision = record.decision.upper()
-            if decision == 'ALLOW':
-                data['allow_count'] += 1
-            elif decision == 'ESCALATE':
-                data['escalate_count'] += 1
-            elif decision == 'CONTAIN':
-                data['contain_count'] += 1
+            if decision == "ALLOW":
+                data["allow_count"] += 1
+            elif decision == "ESCALATE":
+                data["escalate_count"] += 1
+            elif decision == "CONTAIN":
+                data["contain_count"] += 1
 
             # Risk scores
             if record.model_risk_score is not None:
-                data['risk_scores'].append(record.model_risk_score)
+                data["risk_scores"].append(record.model_risk_score)
 
             # Behavioral tracking
-            data['recipients'].add(record.recipient)
-            data['action_types'].add(record.action_type)
-            data['transaction_times'].append(record.timestamp.time())
+            data["recipients"].add(record.recipient)
+            data["action_types"].add(record.action_type)
+            data["transaction_times"].append(record.timestamp.time())
 
             # Policy violations (heuristic: high risk CONTAIN decisions)
-            if decision == 'CONTAIN' and record.model_risk_score and record.model_risk_score >= 0.8:
-                data['policy_violations'] += 1
+            if decision == "CONTAIN" and record.model_risk_score and record.model_risk_score >= 0.8:
+                data["policy_violations"] += 1
 
         # Convert to list of metrics
         agent_metrics = []
         for agent_id, data in agent_data.items():
             metrics = {
-                'agent_id': agent_id,
-                'aggregation_period': period,
-                'period_type': period_type,
-                'total_transactions': data['total_transactions'],
-                'total_value': data['total_value'],
-                'avg_transaction_value': data['total_value'] // data['total_transactions'] if data['total_transactions'] > 0 else 0,
-                'allow_count': data['allow_count'],
-                'escalate_count': data['escalate_count'],
-                'contain_count': data['contain_count'],
-                'unique_recipients': len(data['recipients']),
-                'unique_action_types': len(data['action_types']),
-                'policy_violations': data['policy_violations']
+                "agent_id": agent_id,
+                "aggregation_period": period,
+                "period_type": period_type,
+                "total_transactions": data["total_transactions"],
+                "total_value": data["total_value"],
+                "avg_transaction_value": (
+                    data["total_value"] // data["total_transactions"] if data["total_transactions"] > 0 else 0
+                ),
+                "allow_count": data["allow_count"],
+                "escalate_count": data["escalate_count"],
+                "contain_count": data["contain_count"],
+                "unique_recipients": len(data["recipients"]),
+                "unique_action_types": len(data["action_types"]),
+                "policy_violations": data["policy_violations"],
             }
 
             # Risk statistics
-            if data['risk_scores']:
-                metrics['avg_risk_score'] = statistics.mean(data['risk_scores'])
-                metrics['max_risk_score'] = max(data['risk_scores'])
+            if data["risk_scores"]:
+                metrics["avg_risk_score"] = statistics.mean(data["risk_scores"])
+                metrics["max_risk_score"] = max(data["risk_scores"])
 
             # Activity patterns
-            if data['transaction_times']:
-                times = data['transaction_times']
-                metrics['first_transaction_time'] = min(times)
-                metrics['last_transaction_time'] = max(times)
+            if data["transaction_times"]:
+                times = data["transaction_times"]
+                metrics["first_transaction_time"] = min(times)
+                metrics["last_transaction_time"] = max(times)
 
                 # Peak hour
                 hour_counts = defaultdict(int)
                 for t in times:
                     hour_counts[t.hour] += 1
-                metrics['peak_hour'] = max(hour_counts, key=hour_counts.get)
+                metrics["peak_hour"] = max(hour_counts, key=hour_counts.get)
 
             agent_metrics.append(metrics)
 
@@ -341,49 +333,49 @@ class AnalyticsPipeline:
     def _aggregate_financial_metrics(self, records: List[AuditRecord], date: datetime.date) -> Dict:
         """Aggregate financial metrics for a day."""
         metrics = {
-            'date': date,
-            'total_value_processed': 0,
-            'total_transactions': len(records),
-            'allowed_value': 0,
-            'escalated_value': 0,
-            'contained_value': 0,
-            'fraud_attempts_detected': 0,
-            'fraud_value_prevented': 0,
-            'authorization_count': len(records)
+            "date": date,
+            "total_value_processed": 0,
+            "total_transactions": len(records),
+            "allowed_value": 0,
+            "escalated_value": 0,
+            "contained_value": 0,
+            "fraud_attempts_detected": 0,
+            "fraud_value_prevented": 0,
+            "authorization_count": len(records),
         }
 
         for record in records:
             amount = record.amount
             decision = record.decision.upper()
 
-            metrics['total_value_processed'] += amount
+            metrics["total_value_processed"] += amount
 
-            if decision == 'ALLOW':
-                metrics['allowed_value'] += amount
-            elif decision == 'ESCALATE':
-                metrics['escalated_value'] += amount
-            elif decision == 'CONTAIN':
-                metrics['contained_value'] += amount
-                metrics['fraud_attempts_detected'] += 1
-                metrics['fraud_value_prevented'] += amount
+            if decision == "ALLOW":
+                metrics["allowed_value"] += amount
+            elif decision == "ESCALATE":
+                metrics["escalated_value"] += amount
+            elif decision == "CONTAIN":
+                metrics["contained_value"] += amount
+                metrics["fraud_attempts_detected"] += 1
+                metrics["fraud_value_prevented"] += amount
 
         # Calculate derived metrics
-        if metrics['total_transactions'] > 0:
-            metrics['avg_transaction_value'] = metrics['total_value_processed'] // metrics['total_transactions']
+        if metrics["total_transactions"] > 0:
+            metrics["avg_transaction_value"] = metrics["total_value_processed"] // metrics["total_transactions"]
 
         # Cost analysis (configurable per deployment)
         cost_per_auth = 0.01  # $0.01 per authorization (default)
-        metrics['cost_per_authorization'] = cost_per_auth
-        metrics['total_operational_cost'] = metrics['authorization_count'] * cost_per_auth
+        metrics["cost_per_authorization"] = cost_per_auth
+        metrics["total_operational_cost"] = metrics["authorization_count"] * cost_per_auth
 
         # ROI calculation
         # Convert fraud prevented from paise to USD (rough estimate: 1 USD = 80 INR = 8000 paise)
-        fraud_prevented_usd = metrics['fraud_value_prevented'] / 8000.0
-        metrics['fraud_prevention_savings'] = metrics['fraud_value_prevented']
-        metrics['net_value'] = fraud_prevented_usd - metrics['total_operational_cost']
+        fraud_prevented_usd = metrics["fraud_value_prevented"] / 8000.0
+        metrics["fraud_prevention_savings"] = metrics["fraud_value_prevented"]
+        metrics["net_value"] = fraud_prevented_usd - metrics["total_operational_cost"]
 
-        if metrics['total_operational_cost'] > 0:
-            metrics['roi_percentage'] = (metrics['net_value'] / metrics['total_operational_cost']) * 100
+        if metrics["total_operational_cost"] > 0:
+            metrics["roi_percentage"] = (metrics["net_value"] / metrics["total_operational_cost"]) * 100
 
         return metrics
 
@@ -392,24 +384,24 @@ class AnalyticsPipeline:
         fraud_events = []
 
         for record in records:
-            if record.decision.upper() == 'CONTAIN':
+            if record.decision.upper() == "CONTAIN":
                 event = {
-                    'intent_id': record.intent_id,
-                    'detected_at': record.timestamp,
-                    'agent_id': record.agent_id,
-                    'action_type': record.action_type,
-                    'amount': record.amount,
-                    'currency': record.currency,
-                    'recipient': record.recipient,
-                    'risk_score': record.model_risk_score,
-                    'behavioral_risk': record.behavioral_risk_score,
-                    'semantic_risk': record.semantic_risk_score,
-                    'fraud_type': self._classify_fraud_type(record),
-                    'detection_method': 'ml',
-                    'decision': record.decision,
-                    'decision_reason': record.decision_reason,
-                    'prevented_loss': record.amount,
-                    'investigated': False
+                    "intent_id": record.intent_id,
+                    "detected_at": record.timestamp,
+                    "agent_id": record.agent_id,
+                    "action_type": record.action_type,
+                    "amount": record.amount,
+                    "currency": record.currency,
+                    "recipient": record.recipient,
+                    "risk_score": record.model_risk_score,
+                    "behavioral_risk": record.behavioral_risk_score,
+                    "semantic_risk": record.semantic_risk_score,
+                    "fraud_type": self._classify_fraud_type(record),
+                    "detection_method": "ml",
+                    "decision": record.decision,
+                    "decision_reason": record.decision_reason,
+                    "prevented_loss": record.amount,
+                    "investigated": False,
                 }
                 fraud_events.append(event)
 
@@ -419,14 +411,14 @@ class AnalyticsPipeline:
         """Classify fraud type based on risk scores and reason."""
         reason = record.decision_reason.lower()
 
-        if 'velocity' in reason or 'frequent' in reason:
-            return 'velocity'
-        elif 'anomaly' in reason or 'unusual' in reason:
-            return 'anomaly'
-        elif 'policy' in reason:
-            return 'policy'
+        if "velocity" in reason or "frequent" in reason:
+            return "velocity"
+        elif "anomaly" in reason or "unusual" in reason:
+            return "anomaly"
+        elif "policy" in reason:
+            return "policy"
         else:
-            return 'pattern'
+            return "pattern"
 
     def _detect_policy_violations(self, records: List[AuditRecord]) -> List[Dict]:
         """Detect policy violations from records."""
@@ -437,18 +429,18 @@ class AnalyticsPipeline:
             reason = record.decision_reason.lower()
             decision = record.decision.upper()
 
-            if decision in ['ESCALATE', 'CONTAIN'] and 'policy' in reason:
+            if decision in ["ESCALATE", "CONTAIN"] and "policy" in reason:
                 violation = {
-                    'intent_id': record.intent_id,
-                    'violated_at': record.timestamp,
-                    'policy_rule': self._extract_policy_rule(record.decision_reason),
-                    'violation_type': self._classify_violation_type(record),
-                    'severity': self._classify_severity(record),
-                    'agent_id': record.agent_id,
-                    'action_type': record.action_type,
-                    'amount': record.amount,
-                    'action_taken': 'blocked' if decision == 'CONTAIN' else 'escalated',
-                    'resolved': False
+                    "intent_id": record.intent_id,
+                    "violated_at": record.timestamp,
+                    "policy_rule": self._extract_policy_rule(record.decision_reason),
+                    "violation_type": self._classify_violation_type(record),
+                    "severity": self._classify_severity(record),
+                    "agent_id": record.agent_id,
+                    "action_type": record.action_type,
+                    "amount": record.amount,
+                    "action_taken": "blocked" if decision == "CONTAIN" else "escalated",
+                    "resolved": False,
                 }
                 violations.append(violation)
 
@@ -457,41 +449,36 @@ class AnalyticsPipeline:
     def _extract_policy_rule(self, reason: str) -> str:
         """Extract policy rule name from decision reason."""
         # Simple extraction - could be enhanced with NLP
-        if 'high-value' in reason.lower():
-            return 'high_value_threshold'
-        elif 'frequency' in reason.lower():
-            return 'transaction_frequency'
-        elif 'amount' in reason.lower():
-            return 'amount_threshold'
+        if "high-value" in reason.lower():
+            return "high_value_threshold"
+        elif "frequency" in reason.lower():
+            return "transaction_frequency"
+        elif "amount" in reason.lower():
+            return "amount_threshold"
         else:
-            return 'unknown_policy'
+            return "unknown_policy"
 
     def _classify_violation_type(self, record: AuditRecord) -> str:
         """Classify violation type."""
         if record.amount > 1000000:  # > ₹10,000
-            return 'threshold'
+            return "threshold"
         elif record.behavioral_risk_score and record.behavioral_risk_score > 0.7:
-            return 'velocity'
+            return "velocity"
         else:
-            return 'pattern'
+            return "pattern"
 
     def _classify_severity(self, record: AuditRecord) -> str:
         """Classify violation severity."""
         if record.model_risk_score and record.model_risk_score >= 0.9:
-            return 'critical'
+            return "critical"
         elif record.model_risk_score and record.model_risk_score >= 0.7:
-            return 'high'
+            return "high"
         elif record.model_risk_score and record.model_risk_score >= 0.5:
-            return 'medium'
+            return "medium"
         else:
-            return 'low'
+            return "low"
 
-    def _detect_anomalies(
-        self,
-        session: Session,
-        records: List[AuditRecord],
-        period: datetime.datetime
-    ) -> List[Dict]:
+    def _detect_anomalies(self, session: Session, records: List[AuditRecord], period: datetime.datetime) -> List[Dict]:
         """Detect anomalies in transaction patterns."""
         anomalies = []
 
@@ -500,20 +487,22 @@ class AnalyticsPipeline:
         historical_avg = self._get_historical_average_volume(session, period)
 
         if historical_avg and current_volume > historical_avg * 2:  # 2x spike
-            anomalies.append({
-                'detected_at': period,
-                'anomaly_type': 'volume',
-                'severity': 'high' if current_volume > historical_avg * 3 else 'medium',
-                'entity_type': 'system',
-                'entity_id': None,
-                'description': f'Transaction volume spike: {current_volume} vs average {historical_avg:.0f}',
-                'baseline_value': historical_avg,
-                'current_value': float(current_volume),
-                'deviation_score': (current_volume - historical_avg) / historical_avg if historical_avg > 0 else 0,
-                'affected_intents': current_volume,
-                'alerted': False,
-                'acknowledged': False
-            })
+            anomalies.append(
+                {
+                    "detected_at": period,
+                    "anomaly_type": "volume",
+                    "severity": "high" if current_volume > historical_avg * 3 else "medium",
+                    "entity_type": "system",
+                    "entity_id": None,
+                    "description": f"Transaction volume spike: {current_volume} vs average {historical_avg:.0f}",
+                    "baseline_value": historical_avg,
+                    "current_value": float(current_volume),
+                    "deviation_score": (current_volume - historical_avg) / historical_avg if historical_avg > 0 else 0,
+                    "affected_intents": current_volume,
+                    "alerted": False,
+                    "acknowledged": False,
+                }
+            )
 
         return anomalies
 
@@ -531,7 +520,7 @@ class AnalyticsPipeline:
                     AND aggregation_period < :end
                     AND period_type = 'hour'
                 """),
-                {'start': lookback_start, 'end': period}
+                {"start": lookback_start, "end": period},
             ).scalar()
 
             return float(result) if result else None
@@ -580,7 +569,7 @@ class AnalyticsPipeline:
                     avg_semantic_risk = EXCLUDED.avg_semantic_risk,
                     updated_at = CURRENT_TIMESTAMP
             """),
-            metrics
+            metrics,
         )
 
     def _upsert_agent_metrics(self, session: Session, metrics: Dict):
@@ -622,7 +611,7 @@ class AnalyticsPipeline:
                     peak_hour = EXCLUDED.peak_hour,
                     updated_at = CURRENT_TIMESTAMP
             """),
-            metrics
+            metrics,
         )
 
     def _upsert_financial_metrics(self, session: Session, metrics: Dict):
@@ -659,7 +648,7 @@ class AnalyticsPipeline:
                     roi_percentage = EXCLUDED.roi_percentage,
                     updated_at = CURRENT_TIMESTAMP
             """),
-            metrics
+            metrics,
         )
 
     def _insert_fraud_event(self, session: Session, event: Dict):
@@ -680,7 +669,7 @@ class AnalyticsPipeline:
                     )
                     ON CONFLICT (intent_id) DO NOTHING
                 """),
-                event
+                event,
             )
         except Exception as e:
             logger.warning(f"Could not insert fraud event: {e}")
@@ -698,7 +687,7 @@ class AnalyticsPipeline:
                         :agent_id, :action_type, :amount, :action_taken, :resolved
                     )
                 """),
-                violation
+                violation,
             )
         except Exception as e:
             logger.warning(f"Could not insert policy violation: {e}")
@@ -718,7 +707,7 @@ class AnalyticsPipeline:
                         :affected_intents, :alerted, :acknowledged
                     )
                 """),
-                anomaly
+                anomaly,
             )
         except Exception as e:
             logger.warning(f"Could not insert anomaly: {e}")
@@ -727,29 +716,19 @@ class AnalyticsPipeline:
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    parser = argparse.ArgumentParser(description='Run Sentinel Analytics Pipeline')
+    parser = argparse.ArgumentParser(description="Run Sentinel Analytics Pipeline")
     parser.add_argument(
-        '--period',
-        choices=['hourly', 'daily'],
-        required=True,
-        help='Aggregation period (hourly or daily)'
+        "--period", choices=["hourly", "daily"], required=True, help="Aggregation period (hourly or daily)"
     )
-    parser.add_argument(
-        '--target',
-        type=str,
-        help='Target hour/date (ISO format). Defaults to previous period.'
-    )
+    parser.add_argument("--target", type=str, help="Target hour/date (ISO format). Defaults to previous period.")
 
     args = parser.parse_args()
 
     pipeline = AnalyticsPipeline()
 
-    if args.period == 'hourly':
+    if args.period == "hourly":
         target_hour = datetime.datetime.fromisoformat(args.target) if args.target else None
         result = pipeline.run_hourly_aggregation(target_hour)
     else:

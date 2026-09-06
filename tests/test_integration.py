@@ -19,6 +19,7 @@ engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": 
 Base.metadata.create_all(bind=engine)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def override_get_db():
     try:
         db = TestingSessionLocal()
@@ -26,7 +27,9 @@ def override_get_db():
     finally:
         db.close()
 
+
 from unittest.mock import AsyncMock
+
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
@@ -48,18 +51,15 @@ def test_evaluate_observe_mode():
         "currency": "INR",
         "recipient": "bank_obs",
         "agent_id": "agent_obs",
-        "context": {}
+        "context": {},
     }
-    
-    headers = {
-        "Idempotency-Key": "idem_obs_1",
-        "X-Sentinel-Mode": "observe"
-    }
-    
+
+    headers = {"Idempotency-Key": "idem_obs_1", "X-Sentinel-Mode": "observe"}
+
     with TestClient(app) as client:
         response = client.post("/evaluate", json=payload, headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["decision"] == "ALLOW"
     # The API relays the evaluator response; observe-mode token suppression is
@@ -77,18 +77,15 @@ def test_evaluate_govern_mode_escalation():
         "currency": "INR",
         "recipient": "bank_gov",
         "agent_id": "agent_gov",
-        "context": {}
+        "context": {},
     }
-    
-    headers = {
-        "Idempotency-Key": "idem_gov_1",
-        "X-Sentinel-Mode": "govern"
-    }
-    
+
+    headers = {"Idempotency-Key": "idem_gov_1", "X-Sentinel-Mode": "govern"}
+
     with TestClient(app) as client:
         response = client.post("/evaluate", json=payload, headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["decision"] == "ALLOW"
     assert data["capability_token"] == "mock_token"
@@ -104,20 +101,15 @@ def test_evaluate_govern_mode_allow():
         "currency": "INR",
         "recipient": "bank_allow",
         "agent_id": "agent_allow",
-        "context": {
-            "has_sufficient_history": 1  # Bypasses the new-agent escalation rule
-        }
+        "context": {"has_sufficient_history": 1},  # Bypasses the new-agent escalation rule
     }
-    
-    headers = {
-        "Idempotency-Key": "idem_gov_2",
-        "X-Sentinel-Mode": "govern"
-    }
-    
+
+    headers = {"Idempotency-Key": "idem_gov_2", "X-Sentinel-Mode": "govern"}
+
     with TestClient(app) as client:
         response = client.post("/evaluate", json=payload, headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["decision"] == "ALLOW"
     assert data["capability_token"] is not None
@@ -133,26 +125,23 @@ def test_fastapi_fail_closed_on_idempotency_conflict():
         "currency": "INR",
         "recipient": "bank_conflict",
         "agent_id": "agent_conflict",
-        "context": {"has_sufficient_history": 1}
+        "context": {"has_sufficient_history": 1},
     }
-    
-    headers = {
-        "Idempotency-Key": "idem_conflict_1",
-        "X-Sentinel-Mode": "govern"
-    }
-    
+
+    headers = {"Idempotency-Key": "idem_conflict_1", "X-Sentinel-Mode": "govern"}
+
     with TestClient(app) as client:
         # First request
         client.post("/evaluate", json=payload1, headers=headers)
-        
+
         # Mutated second request with same key
         payload2 = payload1.copy()
         payload2["amount"] = 5000
-        
+
         response = client.post("/evaluate", json=payload2, headers=headers)
-        
+
     assert response.status_code == 403
-    
+
     data = response.json()
     assert data["decision"] == "ESCALATE"
     assert "different payload" in data["reason"]

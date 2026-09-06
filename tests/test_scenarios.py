@@ -34,8 +34,14 @@ class TestScenarioRegistry:
         """All seven scenarios exist in the registry."""
         assert len(ALL_SCENARIOS) == 8
         expected_names = {
-            "normal", "abuse_burst", "misconfigured", "slow_abuse",
-            "seasonal_spike", "new_agent", "benign_drift", "behavioral_evasion"
+            "normal",
+            "abuse_burst",
+            "misconfigured",
+            "slow_abuse",
+            "seasonal_spike",
+            "new_agent",
+            "benign_drift",
+            "behavioral_evasion",
         }
         assert set(ALL_SCENARIOS.keys()) == expected_names
 
@@ -71,31 +77,23 @@ class TestScenarioLabels:
     def test_loss_label_is_binary(self):
         """loss_label is always 0 or 1."""
         for name, scenario in ALL_SCENARIOS.items():
-            assert scenario.loss_label in (0, 1), (
-                f"Scenario '{name}' has invalid loss_label: {scenario.loss_label}"
-            )
+            assert scenario.loss_label in (0, 1), f"Scenario '{name}' has invalid loss_label: {scenario.loss_label}"
 
     def test_no_model_risk_or_decision_in_scenario(self):
         """Scenarios define loss_label, NOT model_risk or decision."""
         for name, scenario in ALL_SCENARIOS.items():
-            assert not hasattr(scenario, "model_risk"), (
-                f"Scenario '{name}' should not have model_risk"
-            )
-            assert not hasattr(scenario, "decision"), (
-                f"Scenario '{name}' should not have a 'decision' field"
-            )
+            assert not hasattr(scenario, "model_risk"), f"Scenario '{name}' should not have model_risk"
+            assert not hasattr(scenario, "decision"), f"Scenario '{name}' should not have a 'decision' field"
 
     def test_loss_type_matches_loss_label(self):
         """loss_type is None when loss_label=0, non-None when loss_label=1."""
         for name, scenario in ALL_SCENARIOS.items():
             if scenario.loss_label == 0:
-                assert scenario.loss_type == LossType.NONE, (
-                    f"Scenario '{name}': loss_label=0 but loss_type={scenario.loss_type}"
-                )
+                assert (
+                    scenario.loss_type == LossType.NONE
+                ), f"Scenario '{name}': loss_label=0 but loss_type={scenario.loss_type}"
             else:
-                assert scenario.loss_type != LossType.NONE, (
-                    f"Scenario '{name}': loss_label=1 but loss_type is NONE"
-                )
+                assert scenario.loss_type != LossType.NONE, f"Scenario '{name}': loss_label=1 but loss_type is NONE"
 
 
 class TestNormalScenario:
@@ -144,19 +142,13 @@ class TestAbuseBurstScenario:
         assert SCENARIO_ABUSE_BURST.threat_actor == ThreatActor.COMPROMISED
 
     def test_higher_velocity_than_normal(self):
-        assert (
-            SCENARIO_ABUSE_BURST.velocity.actions_per_hour_mean
-            > SCENARIO_NORMAL.velocity.actions_per_hour_mean * 3
-        )
+        assert SCENARIO_ABUSE_BURST.velocity.actions_per_hour_mean > SCENARIO_NORMAL.velocity.actions_per_hour_mean * 3
 
     def test_higher_amounts_than_normal(self):
         assert SCENARIO_ABUSE_BURST.amount.mean > SCENARIO_NORMAL.amount.mean * 2
 
     def test_more_novel_recipients(self):
-        assert (
-            SCENARIO_ABUSE_BURST.recipients.known_recipient_ratio
-            < SCENARIO_NORMAL.recipients.known_recipient_ratio
-        )
+        assert SCENARIO_ABUSE_BURST.recipients.known_recipient_ratio < SCENARIO_NORMAL.recipients.known_recipient_ratio
 
     def test_operates_outside_hours(self):
         assert SCENARIO_ABUSE_BURST.temporal.operates_outside_hours is True
@@ -195,10 +187,7 @@ class TestSlowAbuseScenario:
 
     def test_low_velocity(self):
         """Slow abuse deliberately keeps velocity low."""
-        assert (
-            SCENARIO_SLOW_ABUSE.velocity.actions_per_hour_mean
-            < SCENARIO_NORMAL.velocity.actions_per_hour_mean
-        )
+        assert SCENARIO_SLOW_ABUSE.velocity.actions_per_hour_mean < SCENARIO_NORMAL.velocity.actions_per_hour_mean
 
     def test_amounts_near_threshold(self):
         """Amounts cluster near the normal p95 (threshold-aware)."""
@@ -278,10 +267,8 @@ class TestBenignDriftScenario:
     def test_different_hours_from_normal(self):
         """Operating hours have changed from normal baseline."""
         assert (
-            SCENARIO_BENIGN_DRIFT.temporal.typical_hour_start
-            != SCENARIO_NORMAL.temporal.typical_hour_start
-            or SCENARIO_BENIGN_DRIFT.temporal.typical_hour_end
-            != SCENARIO_NORMAL.temporal.typical_hour_end
+            SCENARIO_BENIGN_DRIFT.temporal.typical_hour_start != SCENARIO_NORMAL.temporal.typical_hour_start
+            or SCENARIO_BENIGN_DRIFT.temporal.typical_hour_end != SCENARIO_NORMAL.temporal.typical_hour_end
         )
 
     def test_has_drift_onset(self):
@@ -323,28 +310,18 @@ class TestAmountsInPaise:
 
     def test_all_amounts_are_integers(self):
         for name, scenario in ALL_SCENARIOS.items():
-            assert isinstance(scenario.amount.mean, int), (
-                f"Scenario '{name}': amount.mean is not int"
-            )
-            assert isinstance(scenario.amount.std, int), (
-                f"Scenario '{name}': amount.std is not int"
-            )
-            assert isinstance(scenario.amount.min_amount, int), (
-                f"Scenario '{name}': amount.min_amount is not int"
-            )
-            assert isinstance(scenario.amount.max_amount, int), (
-                f"Scenario '{name}': amount.max_amount is not int"
-            )
-            assert isinstance(scenario.amount.p95, int), (
-                f"Scenario '{name}': amount.p95 is not int"
-            )
+            assert isinstance(scenario.amount.mean, int), f"Scenario '{name}': amount.mean is not int"
+            assert isinstance(scenario.amount.std, int), f"Scenario '{name}': amount.std is not int"
+            assert isinstance(scenario.amount.min_amount, int), f"Scenario '{name}': amount.min_amount is not int"
+            assert isinstance(scenario.amount.max_amount, int), f"Scenario '{name}': amount.max_amount is not int"
+            assert isinstance(scenario.amount.p95, int), f"Scenario '{name}': amount.p95 is not int"
 
     def test_no_float_amounts(self):
         """Explicitly verify no floating-point money (masterplan §19)."""
         for name, scenario in ALL_SCENARIOS.items():
-            assert not isinstance(scenario.amount.mean, float), (
-                f"Scenario '{name}': FLOAT money detected in amount.mean"
-            )
+            assert not isinstance(
+                scenario.amount.mean, float
+            ), f"Scenario '{name}': FLOAT money detected in amount.mean"
 
 
 class TestActionMixes:
@@ -354,14 +331,10 @@ class TestActionMixes:
         for name, scenario in ALL_SCENARIOS.items():
             if scenario.action_mix:
                 total = sum(scenario.action_mix.values())
-                assert abs(total - 1.0) < 0.01, (
-                    f"Scenario '{name}': action_mix sums to {total}"
-                )
+                assert abs(total - 1.0) < 0.01, f"Scenario '{name}': action_mix sums to {total}"
 
     def test_all_actions_valid(self):
         valid_actions = {"refund", "retry", "checkout", "payout"}
         for name, scenario in ALL_SCENARIOS.items():
             for action in scenario.action_mix:
-                assert action in valid_actions, (
-                    f"Scenario '{name}': unknown action '{action}'"
-                )
+                assert action in valid_actions, f"Scenario '{name}': unknown action '{action}'"

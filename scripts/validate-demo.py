@@ -39,11 +39,12 @@ EXPECTED_OUTCOMES = {
 
 class Colors:
     """ANSI color codes for terminal output"""
-    GREEN = '\033[0;32m'
-    RED = '\033[0;31m'
-    YELLOW = '\033[1;33m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'  # No Color
+
+    GREEN = "\033[0;32m"
+    RED = "\033[0;31m"
+    YELLOW = "\033[1;33m"
+    BLUE = "\033[0;34m"
+    NC = "\033[0m"  # No Color
 
 
 async def check_backend_health(client: httpx.AsyncClient) -> bool:
@@ -81,10 +82,7 @@ async def test_scenario(client: httpx.AsyncClient, scenario_name: str, expected:
         print(f"\n{Colors.BLUE}Testing: {scenario_name}{Colors.NC}")
 
         # Call the demo scenario endpoint
-        response = await client.post(
-            f"{BASE_URL}/demo/scenarios/{scenario_name}",
-            timeout=TIMEOUT
-        )
+        response = await client.post(f"{BASE_URL}/demo/scenarios/{scenario_name}", timeout=TIMEOUT)
 
         if response.status_code != 200:
             print(f"  {Colors.RED}❌ API returned status {response.status_code}{Colors.NC}")

@@ -28,6 +28,7 @@ import statistics
 from locust import HttpUser, task, between, events
 from locust.contrib.fasthttp import FastHttpUser
 
+
 # Enhanced metrics tracking
 class PerformanceMetrics:
     def __init__(self):
@@ -39,7 +40,7 @@ class PerformanceMetrics:
             "api_kafka_ms": [],
             "api_wait_ms": [],
             "worker_xgb_ms": [],
-            "total_ms": []
+            "total_ms": [],
         }
         self.errors = []
         self.start_time = None
@@ -75,9 +76,9 @@ class PerformanceMetrics:
 
     def print_summary(self):
         """Print comprehensive performance summary"""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("SENTINEL ENHANCED LOAD TEST REPORT")
-        print("="*80)
+        print("=" * 80)
 
         if not self.latencies:
             print("No requests recorded!")
@@ -130,7 +131,7 @@ class PerformanceMetrics:
         error_rate = (len(self.errors) / len(self.latencies)) * 100
         print(f"\n❌ ERROR RATE: {error_rate:.2f}% ({len(self.errors)}/{len(self.latencies)})")
 
-        print("\n" + "="*80 + "\n")
+        print("\n" + "=" * 80 + "\n")
 
 
 # Global metrics instance
@@ -169,28 +170,22 @@ class SentinelLoadUser(FastHttpUser):
             "context": {
                 "session_id": self.session_id,
                 "timestamp": int(time.time()),
-            }
+            },
         }
 
         start = time.perf_counter()
         with self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            catch_response=True
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            catch_response=True,
         ) as response:
             latency_ms = (time.perf_counter() - start) * 1000
 
             if response.status_code == 200:
                 data = response.json()
                 metrics.record_request(
-                    latency_ms=latency_ms,
-                    status_code=200,
-                    decision=data.get("decision"),
-                    timings=data.get("timings")
+                    latency_ms=latency_ms, status_code=200, decision=data.get("decision"), timings=data.get("timings")
                 )
                 response.success()
             else:
@@ -213,18 +208,15 @@ class SentinelLoadUser(FastHttpUser):
             "amount": random.randint(500000, 2000000),
             "currency": "INR",
             "recipient": f"vendor-{random.randint(1, 100):03d}",
-            "context": {}
+            "context": {},
         }
 
         start = time.perf_counter()
         with self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            catch_response=True
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            catch_response=True,
         ) as response:
             latency_ms = (time.perf_counter() - start) * 1000
 
@@ -235,7 +227,7 @@ class SentinelLoadUser(FastHttpUser):
                         latency_ms=latency_ms,
                         status_code=200,
                         decision=data.get("decision"),
-                        timings=data.get("timings")
+                        timings=data.get("timings"),
                     )
                 response.success()
             else:
@@ -259,18 +251,15 @@ class SentinelLoadUser(FastHttpUser):
                 "amount": 50000,
                 "currency": "INR",
                 "recipient": f"burst-{i}@example.com",
-                "context": {}
+                "context": {},
             }
 
             start = time.perf_counter()
             response = self.client.post(
                 "/evaluate",
                 json=payload,
-                headers={
-                    "Idempotency-Key": idempotency_key,
-                    "X-Sentinel-Mode": "govern"
-                },
-                name="/evaluate (burst)"
+                headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+                name="/evaluate (burst)",
             )
             latency_ms = (time.perf_counter() - start) * 1000
 
@@ -297,7 +286,7 @@ class SentinelLoadUser(FastHttpUser):
             "amount": 75000,
             "currency": "INR",
             "recipient": "retry-test@example.com",
-            "context": {}
+            "context": {},
         }
 
         # First request
@@ -305,11 +294,8 @@ class SentinelLoadUser(FastHttpUser):
         response1 = self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            name="/evaluate (idempotent)"
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            name="/evaluate (idempotent)",
         )
         latency_ms = (time.perf_counter() - start) * 1000
 
@@ -352,18 +338,15 @@ class StressTestUser(FastHttpUser):
             "amount": 10000,
             "currency": "INR",
             "recipient": "stress@example.com",
-            "context": {}
+            "context": {},
         }
 
         start = time.perf_counter()
         response = self.client.post(
             "/evaluate",
             json=payload,
-            headers={
-                "Idempotency-Key": idempotency_key,
-                "X-Sentinel-Mode": "govern"
-            },
-            name="/evaluate (stress)"
+            headers={"Idempotency-Key": idempotency_key, "X-Sentinel-Mode": "govern"},
+            name="/evaluate (stress)",
         )
         latency_ms = (time.perf_counter() - start) * 1000
         metrics.record_request(latency_ms, response.status_code)
@@ -375,7 +358,9 @@ def on_test_start(environment, **kwargs):
     """Initialize metrics when test starts"""
     print("\n🚀 Starting Sentinel Enhanced Load Test")
     print(f"Target: {environment.host}")
-    print(f"Users: {environment.runner.target_user_count if hasattr(environment.runner, 'target_user_count') else 'N/A'}")
+    print(
+        f"Users: {environment.runner.target_user_count if hasattr(environment.runner, 'target_user_count') else 'N/A'}"
+    )
     metrics.start_time = time.time()
 
 
@@ -406,7 +391,7 @@ def on_test_stop(environment, **kwargs):
             "error_rate_pct": (len(metrics.errors) / len(metrics.latencies) * 100) if metrics.latencies else 0,
         }
 
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             json.dump(report_data, f, indent=2)
         print(f"📝 Report saved to: {report_file}")
     except Exception as e:

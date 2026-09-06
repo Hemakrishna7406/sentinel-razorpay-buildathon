@@ -35,7 +35,7 @@ class ExternalValidator:
         self.datasets_available = {
             "ieee-cis": "IEEE-CIS Fraud Detection (Kaggle)",
             "paysim": "PaySim Synthetic Financial Transactions",
-            "credit-card": "Credit Card Fraud Detection"
+            "credit-card": "Credit Card Fraud Detection",
         }
 
     def load_ieee_cis_sample(self, sample_size: int = 10000) -> Optional[pd.DataFrame]:
@@ -85,10 +85,7 @@ class ExternalValidator:
         return pd.DataFrame(sentinel_features)
 
     def evaluate_domain_shift(
-        self,
-        model,
-        synthetic_test: pd.DataFrame,
-        external_test: Optional[pd.DataFrame]
+        self, model, synthetic_test: pd.DataFrame, external_test: Optional[pd.DataFrame]
     ) -> Dict[str, Any]:
         """
         Domain Shift Experiment:
@@ -104,11 +101,7 @@ class ExternalValidator:
 
         Returns comparative metrics to quantify domain shift impact.
         """
-        results = {
-            "synthetic_holdout": None,
-            "external_validation": None,
-            "domain_shift_delta": None
-        }
+        results = {"synthetic_holdout": None, "external_validation": None, "domain_shift_delta": None}
 
         # Test A: Synthetic holdout
         if synthetic_test is not None and len(synthetic_test) > 0:
@@ -119,7 +112,7 @@ class ExternalValidator:
                     results["synthetic_holdout"] = {
                         "roc_auc": roc_auc_score(y_true_synth, y_pred_synth),
                         "pr_auc": average_precision_score(y_true_synth, y_pred_synth),
-                        "n_samples": len(synthetic_test)
+                        "n_samples": len(synthetic_test),
                     }
                 except Exception as e:
                     logger.error(f"Synthetic evaluation failed: {e}")
@@ -130,14 +123,12 @@ class ExternalValidator:
             if y_true_ext is not None and model is not None:
                 try:
                     # Map external features to Sentinel space
-                    external_mapped = self.map_external_features_to_sentinel(
-                        external_test, "ieee-cis"
-                    )
+                    external_mapped = self.map_external_features_to_sentinel(external_test, "ieee-cis")
                     y_pred_ext = model.predict(external_mapped)
                     results["external_validation"] = {
                         "roc_auc": roc_auc_score(y_true_ext, y_pred_ext),
                         "pr_auc": average_precision_score(y_true_ext, y_pred_ext),
-                        "n_samples": len(external_test)
+                        "n_samples": len(external_test),
                     }
                 except Exception as e:
                     logger.error(f"External validation failed: {e}")
@@ -145,14 +136,8 @@ class ExternalValidator:
         # Compute domain shift delta
         if results["synthetic_holdout"] and results["external_validation"]:
             results["domain_shift_delta"] = {
-                "roc_auc_drop": (
-                    results["synthetic_holdout"]["roc_auc"] -
-                    results["external_validation"]["roc_auc"]
-                ),
-                "pr_auc_drop": (
-                    results["synthetic_holdout"]["pr_auc"] -
-                    results["external_validation"]["pr_auc"]
-                )
+                "roc_auc_drop": (results["synthetic_holdout"]["roc_auc"] - results["external_validation"]["roc_auc"]),
+                "pr_auc_drop": (results["synthetic_holdout"]["pr_auc"] - results["external_validation"]["pr_auc"]),
             }
 
         return results
@@ -173,8 +158,15 @@ def validate_no_synthetic_leakage(features_list: list) -> Dict[str, bool]:
     Returns dict of {feature_name: is_safe} for each feature.
     """
     LEAKAGE_KEYWORDS = [
-        "risk", "fraud", "attack", "scenario", "label", "ground_truth",
-        "probability", "malicious", "suspicious_score"
+        "risk",
+        "fraud",
+        "attack",
+        "scenario",
+        "label",
+        "ground_truth",
+        "probability",
+        "malicious",
+        "suspicious_score",
     ]
 
     leakage_check = {}
@@ -192,6 +184,7 @@ if __name__ == "__main__":
 
     # Check feature leakage
     from ml.features import TRANSACTION_FEATURES, BEHAVIORAL_FEATURES
+
     all_features = TRANSACTION_FEATURES + BEHAVIORAL_FEATURES
 
     leakage_results = validate_no_synthetic_leakage(all_features)

@@ -11,15 +11,12 @@ from typing import Dict, Any, Optional
 import os
 import time
 
-from security.capability_token import (
-    TokenManager as CapabilityTokenManager,
-    IntentContext,
-    CapabilityTokenException
-)
+from security.capability_token import TokenManager as CapabilityTokenManager, IntentContext, CapabilityTokenException
 from execution.provider import PaymentExecutionProvider
 from execution.schema import ExecutionReceipt
 
 logger = logging.getLogger(__name__)
+
 
 class ExecutionGateway:
     def __init__(
@@ -43,14 +40,12 @@ class ExecutionGateway:
 
         ttl_seconds = max(1, expires_at - int(time.time()))
         try:
-            acquired = await self.replay_store.set(
-                f"capability:jti:{jti}", "consumed", nx=True, ex=ttl_seconds
-            )
+            acquired = await self.replay_store.set(f"capability:jti:{jti}", "consumed", nx=True, ex=ttl_seconds)
         except Exception as exc:
             raise ValueError("Execution rejected: Replay-protection state unavailable.") from exc
         if not acquired:
             raise ValueError("Execution rejected: Token has already been consumed (replay attack).")
-        
+
     async def execute(self, token: str, expected_intent: IntentContext) -> ExecutionReceipt:
         """
         Validates the capability token and executes the transaction via the provider.
@@ -59,28 +54,24 @@ class ExecutionGateway:
         if not token:
             logger.error("Execution attempted without a capability token.")
             raise ValueError("Execution rejected: Missing capability token.")
-            
+
         # 1. Capability Validation (Enforces all invariants)
         try:
             payload = self.token_manager.verify_token(token, expected_intent, consume=False)
         except CapabilityTokenException as e:
             logger.error(f"Execution rejected: {str(e)}")
             raise ValueError(f"Execution rejected: {str(e)}")
-            
+
         await self._claim_jti(payload.jti, payload.expires_at)
         logger.info(f"Capability Token Validated (JTI: {payload.jti}). Delegating to provider.")
-        
+
         # 2. Execution Delegation
         # We pass the validated payload so the adapter doesn't blindly trust the caller's requested action.
-        
+
         # The adapter maps the action (e.g., 'refund') to its own MCP tool.
         # We pass the intent properties as arguments.
-        args = {
-            "amount": payload.amount,
-            "currency": payload.currency,
-            "recipient": payload.recipient
-        }
-        
+        args = {"amount": payload.amount, "currency": payload.currency, "recipient": payload.recipient}
+
         try:
             receipt = await self.provider.execute(payload, args)
             return receipt
@@ -104,7 +95,7 @@ class ExecutionGateway:
                 latency_ms=0,
                 verification_status="VERIFIED",
                 timestamp=str(time.time()),
-                provider_reference=f"Exception: {str(e)}"
+                provider_reference=f"Exception: {str(e)}",
             )
 
     async def reconcile(self, receipt: ExecutionReceipt) -> ExecutionReceipt:
@@ -113,9 +104,9 @@ class ExecutionGateway:
         """
         if receipt.status != "UNKNOWN":
             return receipt
-            
+
         # In a real system, this would query Razorpay by the intent_id or idempotency_key
-        # For the chaos tests, we will mock the provider's check_status method if needed, 
+        # For the chaos tests, we will mock the provider's check_status method if needed,
         # or simply transition based on provider's health.
         try:
             health = await self.provider.get_health()
@@ -127,7 +118,7 @@ class ExecutionGateway:
                 pass
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}")
-            
+
         return receipt
 
     def get_provider_status(self) -> Dict[str, Any]:

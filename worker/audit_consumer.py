@@ -38,6 +38,7 @@ METRICS_PORT = settings.AUDIT_METRICS_PORT
 def _start_metrics_server() -> None:
     try:
         from prometheus_client import start_http_server
+
         start_http_server(METRICS_PORT)
         logger.info("Audit consumer metrics server started", port=METRICS_PORT)
     except Exception as e:
@@ -57,7 +58,7 @@ async def main():
         bootstrap_servers=KAFKA_BROKER,
         group_id="sentinel-audit-group",
         auto_offset_reset="earliest",
-        enable_auto_commit=False
+        enable_auto_commit=False,
     )
 
     await consumer.start()
@@ -67,7 +68,7 @@ async def main():
         async for msg in consumer:
             intent_id = "unknown"
             try:
-                event = json.loads(msg.value.decode('utf-8'))
+                event = json.loads(msg.value.decode("utf-8"))
                 intent_id = event.get("intent_id", "unknown")
                 bound_log = logger.bind(intent_id=intent_id)
 
@@ -107,13 +108,13 @@ async def main():
                         "decision": event["decision"],
                         "decision_reason": event["decision_reason"],
                         "capability_jti": jti,
-                        "executed_tx_id": None
+                        "executed_tx_id": None,
                     }
                     record_dict["record_hash"] = audit_record_hash(record_dict)
 
                     if "postgresql" in DB_URL:
                         stmt = insert(AuditRecord).values(**record_dict)
-                        stmt = stmt.on_conflict_do_nothing(index_elements=['intent_id'])
+                        stmt = stmt.on_conflict_do_nothing(index_elements=["intent_id"])
                         db.execute(stmt)
                     else:
                         record = AuditRecord(**record_dict)
@@ -129,15 +130,12 @@ async def main():
 
                 # At-least-once: commit offset only after successful DB write
                 await consumer.commit()
-                bound_log.info("Audit record written",
-                               decision=event["decision"],
-                               db_latency_ms=round(db_latency * 1000, 2))
+                bound_log.info(
+                    "Audit record written", decision=event["decision"], db_latency_ms=round(db_latency * 1000, 2)
+                )
 
             except Exception as e:
-                logger.error("Error auditing message",
-                             intent_id=intent_id,
-                             offset=msg.offset,
-                             error=str(e))
+                logger.error("Error auditing message", intent_id=intent_id, offset=msg.offset, error=str(e))
                 try:
                     POSTGRES_ERRORS_TOTAL.labels(operation="audit_insert").inc()
                 except Exception:

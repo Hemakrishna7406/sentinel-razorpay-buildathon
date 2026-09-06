@@ -41,6 +41,7 @@ class CapabilityPayload:
 
 class CapabilityTokenException(Exception):
     """Base exception for capability token failures."""
+
     pass
 
 
@@ -58,9 +59,10 @@ class TokenInvalidException(CapabilityTokenException):
 
 from core.config import settings
 
+
 class TokenManager:
     """Issues and verifies capability tokens."""
-    
+
     def __init__(self, secret: Optional[bytes] = None):
         if secret is None:
             key_str = settings.CAPABILITY_SIGNING_KEY
@@ -75,7 +77,7 @@ class TokenManager:
         else:
             # Allow passing explicit secret for tests
             self._secret = secret
-            
+
         # Compatibility-only local store for the legacy synchronous simulator.
         # Production execution uses ExecutionGateway's Redis-backed claim.
         self._consumed_jtis = set()
@@ -91,10 +93,10 @@ class TokenManager:
         """
         if decision != "ALLOW":
             raise TokenInvalidException("Cannot issue capability token for non-ALLOW decision.")
-            
+
         now = int(time.time())
         jti = secrets.token_hex(16)
-        
+
         payload = CapabilityPayload(
             intent_id=intent.intent_id,
             agent_id=intent.agent_id,
@@ -105,19 +107,17 @@ class TokenManager:
             decision=decision,
             jti=jti,
             issued_at=now,
-            expires_at=now + ttl_seconds
+            expires_at=now + ttl_seconds,
         )
-        
+
         payload_dict = asdict(payload)
         # Sort keys to ensure deterministic serialization for signature
         payload_str = json.dumps(payload_dict, sort_keys=True)
         signature = self._sign(payload_str)
-        
+
         return f"{payload_str}.{signature}"
 
-    def verify_token(
-        self, token: str, context: IntentContext, *, consume: bool = True
-    ) -> CapabilityPayload:
+    def verify_token(self, token: str, context: IntentContext, *, consume: bool = True) -> CapabilityPayload:
         """
         Verify a token against the execution context.
         Enforces all 10 invariants.
@@ -126,31 +126,31 @@ class TokenManager:
             payload_str, signature = token.rsplit(".", 1)
         except ValueError:
             raise TokenInvalidException("Malformed token format.")
-            
+
         # Invariant 7 & 8: Cryptographic signature (Tamper-proof)
         expected_sig = self._sign(payload_str)
         if not hmac.compare_digest(expected_sig, signature):
             raise TokenTamperedException("Invalid signature.")
-            
+
         try:
             payload_dict = json.loads(payload_str)
             payload = CapabilityPayload(**payload_dict)
         except Exception:
             raise TokenInvalidException("Invalid token payload format.")
-            
+
         # Invariant 10: Explicit ALLOW
         if payload.decision != "ALLOW":
             raise TokenInvalidException(f"Token decision is not ALLOW, got {payload.decision}")
-            
+
         # Invariant 5: Expiration
         now = int(time.time())
         if now > payload.expires_at:
             raise TokenExpiredException(f"Token expired {now - payload.expires_at} seconds ago.")
-            
+
         # Invariant 6: Replay prevention (Nonce/JTI)
         if consume and payload.jti in self._consumed_jtis:
             raise TokenInvalidException("Token has already been consumed (replay attack).")
-            
+
         # Invariant 1, 2, 3, 4, 9: Strict bounding to context
         if payload.intent_id != context.intent_id:
             raise TokenInvalidException("Intent ID mismatch.")
@@ -159,15 +159,17 @@ class TokenManager:
         if payload.action_type != context.action_type:
             raise TokenInvalidException("Action type mismatch.")
         if payload.amount != context.amount:
-            raise TokenInvalidException(f"Amount mismatch. Token authorizes {payload.amount}, request is {context.amount}")
+            raise TokenInvalidException(
+                f"Amount mismatch. Token authorizes {payload.amount}, request is {context.amount}"
+            )
         if payload.currency != context.currency:
             raise TokenInvalidException("Currency mismatch.")
         if payload.recipient != context.recipient:
             raise TokenInvalidException("Recipient mismatch.")
-            
+
         # The synchronous simulator consumes locally for backwards compatibility.
         # ExecutionGateway passes consume=False and atomically claims the JTI in Redis.
         if consume:
             self._consumed_jtis.add(payload.jti)
-        
+
         return payload

@@ -20,13 +20,14 @@ from security.capability_token import TokenManager, IntentContext, CapabilityPay
 from execution.gateway import ExecutionGateway
 from execution.schema import ExecutionReceipt
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_intent(intent_id="int-001", agent_id="agent-A", action="create_order",
-                 amount=5000, currency="INR", recipient="rec-001"):
+
+def _make_intent(
+    intent_id="int-001", agent_id="agent-A", action="create_order", amount=5000, currency="INR", recipient="rec-001"
+):
     return IntentContext(
         intent_id=intent_id,
         agent_id=agent_id,
@@ -71,6 +72,7 @@ def _make_gateway(redis_mock):
 # Gate 18.1E-1: First execution succeeds
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_jti_first_claim_succeeds():
     """
@@ -97,6 +99,7 @@ async def test_jti_first_claim_succeeds():
 # ---------------------------------------------------------------------------
 # Gate 18.1E-2: Second execution with same JTI is BLOCKED
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_jti_replay_is_blocked():
@@ -128,6 +131,7 @@ async def test_jti_replay_is_blocked():
 # Gate 18.1E-3: Concurrent execution — exactly one succeeds
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_jti_concurrent_only_one_succeeds():
     """
@@ -141,8 +145,8 @@ async def test_jti_concurrent_only_one_succeeds():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return True   # First caller wins the lock
-        return None       # Subsequent callers lose
+            return True  # First caller wins the lock
+        return None  # Subsequent callers lose
 
     redis_mock = AsyncMock()
     redis_mock.set.side_effect = mock_set
@@ -174,6 +178,7 @@ async def test_jti_concurrent_only_one_succeeds():
 # Gate 18.1E-4: Redis unavailable → FAIL CLOSED
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_jti_redis_unavailable_fails_closed():
     """
@@ -197,6 +202,7 @@ async def test_jti_redis_unavailable_fails_closed():
 # ---------------------------------------------------------------------------
 # Gate 18.1E-5: No replay_store falls back to in-memory set (isolated mode)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_jti_inmemory_fallback_blocks_replay():
@@ -226,6 +232,7 @@ async def test_jti_inmemory_fallback_blocks_replay():
 # Gate 18.1E-6: TTL is derived from token expiry (not hardcoded)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_jti_ttl_derived_from_token_expiry():
     """
@@ -250,6 +257,6 @@ async def test_jti_ttl_derived_from_token_expiry():
 
     # TTL should be within 5 seconds of expected (test timing tolerance)
     assert actual_ex is not None, "ex= must be set in the Redis SET call"
-    assert abs(actual_ex - expected_ttl_approx) <= 5, (
-        f"TTL {actual_ex} deviates too far from expected {expected_ttl_approx}"
-    )
+    assert (
+        abs(actual_ex - expected_ttl_approx) <= 5
+    ), f"TTL {actual_ex} deviates too far from expected {expected_ttl_approx}"

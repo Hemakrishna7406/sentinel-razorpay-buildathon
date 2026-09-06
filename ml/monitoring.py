@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DriftMetrics:
     """Metrics for drift detection."""
+
     metric_name: str
     current_value: float
     baseline_value: float
@@ -34,6 +35,7 @@ class DriftMetrics:
 @dataclass
 class ModelPerformanceMetrics:
     """Real-time model performance tracking."""
+
     timestamp: str
     total_predictions: int
     prediction_distribution: Dict[str, float]  # LOW, SUSPICIOUS, HIGH
@@ -60,7 +62,7 @@ class ModelMonitor:
         baseline_data: Optional[pd.DataFrame] = None,
         feature_names: Optional[List[str]] = None,
         drift_threshold: float = 0.05,
-        alert_callback: Optional[callable] = None
+        alert_callback: Optional[callable] = None,
     ):
         """
         Initialize the model monitor.
@@ -111,16 +113,12 @@ class ModelMonitor:
                 "median": float(values.median()),
                 "q25": float(values.quantile(0.25)),
                 "q75": float(values.quantile(0.75)),
-                "missing_rate": float(self.baseline_data[col].isna().mean())
+                "missing_rate": float(self.baseline_data[col].isna().mean()),
             }
 
         return stats_dict
 
-    def detect_feature_drift(
-        self,
-        current_data: pd.DataFrame,
-        method: str = "ks"
-    ) -> List[DriftMetrics]:
+    def detect_feature_drift(self, current_data: pd.DataFrame, method: str = "ks") -> List[DriftMetrics]:
         """
         Detect drift in feature distributions.
 
@@ -167,7 +165,7 @@ class ModelMonitor:
                 drift_score=drift_score,
                 drift_detected=drift_detected,
                 threshold=self.drift_threshold,
-                timestamp=timestamp
+                timestamp=timestamp,
             )
 
             drift_results.append(drift_metric)
@@ -186,11 +184,7 @@ class ModelMonitor:
         self.drift_history.extend(drift_results)
         return drift_results
 
-    def _ks_test(
-        self,
-        baseline: pd.Series,
-        current: pd.Series
-    ) -> Tuple[float, float]:
+    def _ks_test(self, baseline: pd.Series, current: pd.Series) -> Tuple[float, float]:
         """
         Perform Kolmogorov-Smirnov test for distribution comparison.
 
@@ -200,12 +194,7 @@ class ModelMonitor:
         ks_stat, p_value = stats.ks_2samp(baseline, current)
         return float(ks_stat), float(p_value)
 
-    def _population_stability_index(
-        self,
-        baseline: pd.Series,
-        current: pd.Series,
-        n_bins: int = 10
-    ) -> float:
+    def _population_stability_index(self, baseline: pd.Series, current: pd.Series, n_bins: int = 10) -> float:
         """
         Calculate Population Stability Index (PSI).
 
@@ -231,11 +220,7 @@ class ModelMonitor:
 
         return float(psi)
 
-    def detect_prediction_drift(
-        self,
-        predictions: np.ndarray,
-        window_size: int = 1000
-    ) -> Optional[DriftMetrics]:
+    def detect_prediction_drift(self, predictions: np.ndarray, window_size: int = 1000) -> Optional[DriftMetrics]:
         """
         Detect drift in prediction distribution.
 
@@ -250,16 +235,10 @@ class ModelMonitor:
             return None
 
         # Get baseline prediction distribution (from earliest data)
-        baseline_preds = [
-            m.avg_risk_score
-            for m in self.performance_history[:min(10, len(self.performance_history))]
-        ]
+        baseline_preds = [m.avg_risk_score for m in self.performance_history[: min(10, len(self.performance_history))]]
 
         # Get current prediction distribution
-        current_preds = [
-            m.avg_risk_score
-            for m in self.performance_history[-min(10, len(self.performance_history)):]
-        ]
+        current_preds = [m.avg_risk_score for m in self.performance_history[-min(10, len(self.performance_history)) :]]
 
         if len(baseline_preds) == 0 or len(current_preds) == 0:
             return None
@@ -282,7 +261,7 @@ class ModelMonitor:
             drift_score=z_score,
             drift_detected=drift_detected,
             threshold=2.0,
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z",
         )
 
         if drift_detected:
@@ -299,10 +278,7 @@ class ModelMonitor:
         self.drift_history.append(drift_metric)
         return drift_metric
 
-    def check_data_quality(
-        self,
-        data: pd.DataFrame
-    ) -> Dict[str, Any]:
+    def check_data_quality(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
         Check data quality issues.
 
@@ -310,12 +286,7 @@ class ModelMonitor:
             Dictionary of quality metrics and issues
         """
         issues = []
-        quality_metrics = {
-            "total_samples": len(data),
-            "missing_value_rate": {},
-            "outlier_rate": {},
-            "issues": issues
-        }
+        quality_metrics = {"total_samples": len(data), "missing_value_rate": {}, "outlier_rate": {}, "issues": issues}
 
         for feature in self.feature_names:
             if feature not in data.columns:
@@ -350,11 +321,7 @@ class ModelMonitor:
 
         return quality_metrics
 
-    def track_prediction(
-        self,
-        risk_score: float,
-        decision: str
-    ):
+    def track_prediction(self, risk_score: float, decision: str):
         """
         Track a single prediction for real-time monitoring.
 
@@ -364,7 +331,7 @@ class ModelMonitor:
         """
         self.prediction_count += 1
         self.prediction_sum += risk_score
-        self.prediction_squared_sum += risk_score ** 2
+        self.prediction_squared_sum += risk_score**2
 
         if decision in self.decision_counts:
             self.decision_counts[decision] += 1
@@ -380,11 +347,11 @@ class ModelMonitor:
                 std_risk_score=0.0,
                 escalation_rate=0.0,
                 containment_rate=0.0,
-                allow_rate=0.0
+                allow_rate=0.0,
             )
 
         avg_risk = self.prediction_sum / self.prediction_count
-        variance = (self.prediction_squared_sum / self.prediction_count) - (avg_risk ** 2)
+        variance = (self.prediction_squared_sum / self.prediction_count) - (avg_risk**2)
         std_risk = np.sqrt(max(0, variance))
 
         total = sum(self.decision_counts.values())
@@ -392,15 +359,12 @@ class ModelMonitor:
         metrics = ModelPerformanceMetrics(
             timestamp=datetime.utcnow().isoformat() + "Z",
             total_predictions=self.prediction_count,
-            prediction_distribution={
-                k: v / total if total > 0 else 0.0
-                for k, v in self.decision_counts.items()
-            },
+            prediction_distribution={k: v / total if total > 0 else 0.0 for k, v in self.decision_counts.items()},
             avg_risk_score=float(avg_risk),
             std_risk_score=float(std_risk),
             escalation_rate=float(self.decision_counts["ESCALATE"] / total if total > 0 else 0),
             containment_rate=float(self.decision_counts["CONTAIN"] / total if total > 0 else 0),
-            allow_rate=float(self.decision_counts["ALLOW"] / total if total > 0 else 0)
+            allow_rate=float(self.decision_counts["ALLOW"] / total if total > 0 else 0),
         )
 
         self.performance_history.append(metrics)
@@ -423,8 +387,10 @@ class ModelMonitor:
             "summary": {
                 "total_predictions_tracked": sum(m.total_predictions for m in self.performance_history),
                 "drift_alerts_count": sum(1 for d in self.drift_history if d.drift_detected),
-                "avg_escalation_rate": np.mean([m.escalation_rate for m in self.performance_history]) if self.performance_history else 0.0
-            }
+                "avg_escalation_rate": (
+                    np.mean([m.escalation_rate for m in self.performance_history]) if self.performance_history else 0.0
+                ),
+            },
         }
 
         with open(output_path, "w") as f:
@@ -433,10 +399,7 @@ class ModelMonitor:
         logger.info(f"Monitoring report exported to {output_path}")
 
 
-def create_baseline_monitor(
-    train_data_path: str,
-    feature_names: List[str]
-) -> ModelMonitor:
+def create_baseline_monitor(train_data_path: str, feature_names: List[str]) -> ModelMonitor:
     """
     Create a ModelMonitor from training data.
 
@@ -447,14 +410,10 @@ def create_baseline_monitor(
     Returns:
         Initialized ModelMonitor
     """
-    if train_data_path.endswith('.csv'):
+    if train_data_path.endswith(".csv"):
         baseline_data = pd.read_csv(train_data_path)
     else:
         # Assume it's a path to serialized DataFrame
         baseline_data = pd.read_pickle(train_data_path)
 
-    return ModelMonitor(
-        baseline_data=baseline_data,
-        feature_names=feature_names,
-        drift_threshold=0.05
-    )
+    return ModelMonitor(baseline_data=baseline_data, feature_names=feature_names, drift_threshold=0.05)

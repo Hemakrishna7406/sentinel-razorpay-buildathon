@@ -86,7 +86,7 @@ class TestNLPolicyCompiler:
         compiler = NLPolicyCompiler()
         compiler.add_rule("ESCALATE IF amount > 5000000", "r1")
         compiler.add_rule("ESCALATE IF action_type = refund", "r2")
-        
+
         escalate, reason = compiler.evaluate({"amount": 100, "action_type": "refund"})
         assert escalate is True
         assert "r2" in reason or "refund" in reason

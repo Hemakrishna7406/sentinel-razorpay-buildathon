@@ -134,7 +134,7 @@ class RazorpayDirectProvider(PaymentExecutionProvider):
                 "sentinel_intent": capability.intent_id,
                 "agent_id": capability.agent_id,
                 "sentinel_decision": capability.decision,
-            }
+            },
         }
 
         # Add optional fields
@@ -169,7 +169,7 @@ class RazorpayDirectProvider(PaymentExecutionProvider):
             "notes": {
                 "sentinel_intent": capability.intent_id,
                 "agent_id": capability.agent_id,
-            }
+            },
         }
 
         # Create payout via SDK
@@ -235,7 +235,7 @@ class RazorpayDirectProvider(PaymentExecutionProvider):
                 "status": "HEALTHY",
                 "environment": self.environment,
                 "api_latency_ms": latency_ms,
-                "sdk_version": razorpay.__version__ if hasattr(razorpay, '__version__') else "unknown",
+                "sdk_version": razorpay.__version__ if hasattr(razorpay, "__version__") else "unknown",
                 "supported_actions": list(self.ACTION_HANDLERS.keys()),
             }
 

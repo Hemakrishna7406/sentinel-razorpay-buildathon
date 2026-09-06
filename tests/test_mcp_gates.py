@@ -3,6 +3,7 @@ import logging
 import mcp
 import time
 from dotenv import load_dotenv
+
 load_dotenv()
 from execution.adapters.mcp_adapter import RazorpayMCPAdapter
 from security.capability_token import CapabilityPayload
@@ -11,15 +12,17 @@ import pytest
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+
 @pytest.mark.asyncio
 async def test_connectivity():
     adapter = RazorpayMCPAdapter(environment="test")
     await adapter._initialize_tools()
     health = await adapter.get_health()
-    
+
     import importlib.metadata
+
     mcp_version = importlib.metadata.version("mcp")
-    
+
     print(f"MCP SDK version: {mcp_version}")
     print(f"Transport: Streamable HTTP")
     print(f"Endpoint: {adapter.mcp_url}")
@@ -31,7 +34,7 @@ async def test_connectivity():
     for tool in adapter.ALLOWED_ACTIONS.values():
         print(f"  - {tool}")
     print(f"Provider status: {health['status']}")
-    
+
     print("\n--- Testing Positive Valid Capability ---")
     valid_cap = CapabilityPayload(
         jti="test_jti_12345",
@@ -43,9 +46,9 @@ async def test_connectivity():
         currency="INR",
         recipient="test_recipient",
         issued_at=int(time.time()),
-        expires_at=9999999999
+        expires_at=9999999999,
     )
-    
+
     try:
         receipt = await adapter.execute(valid_cap, {})
         print(f"MCP CALL: 1")
@@ -55,7 +58,7 @@ async def test_connectivity():
         print(f"Latency: {receipt.latency_ms}ms")
     except Exception as e:
         print(f"Execution failed: {e}")
-        
+
     print("\n--- Testing Negative Invalid Capability ---")
     invalid_cap = CapabilityPayload(
         jti="test_jti_67890",
@@ -67,16 +70,17 @@ async def test_connectivity():
         currency="INR",
         recipient="test_recipient",
         issued_at=int(time.time()),
-        expires_at=9999999999
+        expires_at=9999999999,
     )
-    
+
     try:
         await adapter.execute(invalid_cap, {})
         print("FAILED: Expected execution to be blocked")
     except Exception as e:
         print(f"MCP CALL: 0 (Blocked by gateway: {e})")
-        
+
     await adapter.close()
+
 
 if __name__ == "__main__":
     asyncio.run(test_connectivity())
